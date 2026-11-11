@@ -35,8 +35,12 @@ down with it. Google's official x86 build ships a **Rust
 `bluetooth-service.desktop` HAL** made for exactly this class of hardware
 (same `IBluetoothHci/default` AIDL — a drop-in swap). The kernel side is
 already complete (`btusb.ko` + `btintel.ko` present; `firmware.img` already
-carries `intel/ibt-0040-4150.sfi/.ddc`). Fix mapped — vendor repack porting
-the desktop HAL from the official build; details in `KSU-prep.md` ("Fase 5").
+carries `intel/ibt-0040-4150.sfi/.ddc`). **Fix applied** (11/11/2026): the
+desktop HAL was ported into the installed `vendor.ksu.img` (UART HAL removed
+to avoid a double `IBluetoothHci/default` VINTF provider) and passed the QEMU
+regression suite — boot green, 0 SIGABRT, 0 FORTIFY, 0 VINTF conflict.
+Details in `KSU-prep.md` ("Fase 5"). Release ISOs built before this fix don't
+include it — future `make_iso.sh` builds will.
 
 ---
 
@@ -75,9 +79,12 @@ o stack de BT junto. O build oficial x86 da Google traz um HAL próprio em
 **Rust** (`bluetooth-service.desktop`), feito exatamente para essa classe de
 hardware, com o **mesmo AIDL** `IBluetoothHci/default` — troca drop-in. O
 lado kernel já está completo (`btusb.ko` + `btintel.ko` presentes;
-`firmware.img` já traz `intel/ibt-0040-4150.sfi/.ddc`). Fix mapeado — repack
-do vendor portando o HAL desktop do build oficial; detalhes no
-`KSU-prep.md` ("Fase 5").
+`firmware.img` já traz `intel/ibt-0040-4150.sfi/.ddc`). **Fix aplicado**
+(11/11/2026): o HAL desktop foi portado para o `vendor.ksu.img` instalado
+(HAL UART removido para evitar provider duplo de `IBluetoothHci/default` no
+VINTF) e passou no QEMU de regressão — boot verde, 0 SIGABRT, 0 FORTIFY,
+0 conflito VINTF. Detalhes no `KSU-prep.md` ("Fase 5"). As ISOs do release
+publicadas antes do fix não o incluem — builds futuros via `make_iso.sh` sim.
 
 ### Downloads (releases)
 

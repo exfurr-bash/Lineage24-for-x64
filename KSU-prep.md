@@ -1010,7 +1010,57 @@ no `system/lib64` do Lineage — confirmado.)
 **Áudio BT é follow-up separado** (se A2DP ficar mudo, portar esses arquivos
 no próximo repack).
 
-**Status: diagnóstico concluído; fix mapeado e pronto para aplicar** — o
-repack segue a mesma receita validada (`mkfs.erofs` lz4 + relabel + backup +
-QEMU de regressão).
+## Fix APLICADO (11/11/2026, tarde)
+
+O repack foi executado com a receita de sempre (extração `fsck.erofs` +
+xattrs byte-exatos do original — 2074/0 sem correspondência — + relabel dos
+13 arquivos novos + `mkfs.erofs -zlz4 --preserve-mtime -T 1792414800`):
+
+- **Instalado no SSD**: `vendor.ksu.img` **e**
+  `android-Generic_x86_64-ksu/vendor.img` — os dois eram hardlinks do mesmo
+  inode no passado, mas o link já estava quebrado; por isso a cópia foi feita
+  em ambos explicitamente. sha256 dos dois = `115019425ce0aedc…d43ec68e`
+  (219 369 472 B).
+- **Backup**: `android-Generic_x86_64/vendor.ksu.img.pre-bt`
+  (219 213 824 B, sha256 `079cdf3ab9d8c26e…b7d989e01` — o vendor anterior).
+- **Sanity da imagem nova** (mount loop): binário desktop presente com label
+  `hal_bluetooth_default_exec`, os 4 arquivos do default ausentes, **um único
+  provider** de `IBluetoothHci/default` no VINTF, 8 libs + rc + linha
+  `IHciTool` no `vendor_service_contexts`, labels ok.
+
+### QEMU de regressão (test-bt.iso, 115 s headless)
+
+| critério | resultado |
+|---|---|
+| `Activated 55 packages` (apexd) | ✓ 145 ms |
+| `sys.boot_completed=1` | ✓ 62,9 s |
+| `SIGABRT` no log inteiro | **0** (antes: crash loop ×4) |
+| `FORTIFY: FD_SET` | **0** |
+| `NULL VINTF MANIFEST` (conflito duplo-provider) | **0** |
+| serviço antigo `vendor.bluetooth-default` no log | **0** (removido) |
+| denials avc de BT / erros de sepolicy | 0 |
+| `vendor.bluetooth-desktop` no QEMU | inicia, sai com `status 1` a cada ~5 s (sem HCI emulado → falha **graciosa** com restart pelo init; no hardware real `hci0` existe e o HAL liga) |
+
+Regressão completa: GApps verdes (`55` packages), keystore2 intocado, boot no
+mesmo tempo. Artefatos guardados em
+`/home/iris/gbos-gapps-test/bt-fix/` (`vendor-bt.img`, `vendor-tree/`,
+`orig-vendor-xattrs.txt`, `stage-bt/`, `test-bt.iso`, `qemu-bt.log`).
+
+**Próximo boot real** é o teste de verdade: o `btusb`+`btintel` (kernel) +
+`ibt-0040-4150` (firmware) + HAL desktop (vendor) formam a cadeia completa; o
+toggle de BT deve funcionar. As ISOs do release anterior **não** têm o fix —
+só builds futuros via `make_iso.sh` (que já copia o `vendor.ksu.img` novo do
+SSD). Se o rádio ligar mas o som não rotear em fones, é o follow-up de áudio
+BT/A2DP documentado acima.
+
+### Rollback do fix BT
+
+```sh
+sudo mount -o remount,rw /dev/nvme0n1p7 /mnt/p7
+sudo cp -a /mnt/p7/android-Generic_x86_64/vendor.ksu.img.pre-bt \
+           /mnt/p7/android-Generic_x86_64/vendor.ksu.img
+sudo cp -a /mnt/p7/android-Generic_x86_64/vendor.ksu.img.pre-bt \
+           /mnt/p7/android-Generic_x86_64-ksu/vendor.img
+sudo sync && sudo mount -o remount,ro /dev/nvme0n1p7 /mnt/p7
+```
 
