@@ -685,3 +685,84 @@ Fontes: `/tmp/opencode/dev-generic/` (clone raso do device tree),
 `/tmp/opencode/vk-apex/{no,ss}/apex_payload.img` (payloads ext2, lidos via
 `debugfs`) — **voláteis** (/tmp limpo no reboot do host).
 
+---
+
+# Fase 3 — distribuição: ISOs live + repositório GitHub (2026-11-11)
+
+> Verificação do fix no real **pulada a pedido do usuário** (o teste
+> zero-artefato já havia validado a feature via PMS + ANV no hardware real).
+> Objetivo: publicar ISOs e repositório.
+
+## ISOs
+
+Base: **ISO oficial 20261020** (`/home/iris/lineage-24.0.iso`,
+2 841 491 456 bytes = exatamente as duas partes `lineage-24.0_aa/_ab` do
+release upstream — **verificada byte a byte** contra elas).
+
+### Estrutura da ISO live (do projeto)
+- GRUB (El Torito BIOS `/boot/grub/i386-pc/eltorito.img` + EFI `/efi.img`,
+  grub2-MBR híbrido, `-hfsplus`, Rock Ridge **sem Joliet**, `-V ISOIMAGE`)
+- `android-Generic_x86_64/` com `kernel`, `ramdisk-all-combined.img`,
+  `system.img`, `system_dlkm.img`, `vendor.img`, `vendor_dlkm.img`,
+  `firmware.img` (+ `.disk/<uuid>`, `System/Library/CoreServices`,
+  `mach_kernel` vazio, `efi/`)
+- Modo live: `androidboot.live=1 mount_system=imgs mount_userdata=tmpfs`
+  (**sem userdata persistente por natureza**) — `generic_init` acha o dir
+  Android no próprio dispositivo (QEMU: `/dev/block/sr0`); suporte a
+  Ventoy/loopback GRUB via `androidboot.android_iso_uuid`
+- `grub.cfg` oficial já expõe os overrides gráficos (gralloc_apex,
+  hwc_apex, minigbm, graphics=swiftshader/llvmpipe, use_fb_display)
+- Opções de criação capturadas com `xorriso -indev … -report_system_area
+  as_mkisofs` → rebuild fiel com as mesmas opções
+
+### ISO 1 — `lineage-24.0-20261111-UNOFFICIAL-0xCAFEBABE-Generic_x86_64-live-ksu-vulkan.iso` (2 841 540 608 bytes)
+Mesma estrutura com 4 arquivos trocados: `kernel` ← kernel.ksu,
+`ramdisk-all-combined.img` ← ramdisk KSU, `vendor_dlkm.img` ← vendor_dlkm KSU,
+`vendor.img` ← vendor.ksu.img (**com os 5 XMLs Vulkan**); system/firmware
+stock. `grub.cfg`: títulos "(KernelSU + Vulkan)" + entrada de diagnóstico
+`androidboot.vulkan_apex=2` no submenu de gráficos.
+**QEMU: VERDE** — GRUB auto-boot serial, android dir no sr0, KSU ativo,
+`Activated 10 packages` (52 ms), 0 Mounting failed, zygote ok. No QEMU o
+`hardware_detect` escolhe `lvp_mesa3d` (correto: sem GPU real); no hardware
+real detecta `intel`/ANV.
+
+### ISO 2 — `lineage-24.0-20261020-original.iso`
+A original oficial **sem modificações** (re-host; partes renomeadas p/
+clareza). Nota: o `vendor.img` original tem 201,5 MB — o do SSD (219 MB,
+`.before_ucm`) já era a versão da sessão anterior; a ISO é a referência
+stock.
+
+## Repositório
+**https://github.com/exfurr-bash/Lineage24-for-x64** (public) — commit
+`7fb8a8d`: README (EN/PT-BR), `KSU-prep.md`, `build_kernel_ksu.sh`,
+`install_kernel_ksu.sh`, `install_vendor_vulkan.sh`, `make_iso.sh` (receita
+reprodutível da ISO: extrai esqueleto da oficial, troca as 4 imagens, ajusta
+grub.cfg, xorriso com as opções capturadas), `patch_vendor_*.sh`,
+`collect_bootloop_logs.sh`, docs issue3/SOM, `vendor-vulkan-xmls/`.
+`.gitignore` exclui build/ (24 GB), backups, `extracted/`, `*.iso`, `*.img`.
+
+## Release
+Tag `lineage-24.0-20261111-UNOFFICIAL-0xCAFEBABE-Generic_x86_64-live-ksu-vulkan`
+com: ISO1 em 3 partes (`_aa/_ab/_ac`, 1,42 GB + 1,42 GB + 48 KB), original
+em 2 partes (`_aa/_ab` — a oficial tem exatamente 2× 1,42 GB, sem resto),
+`sha256sums.txt` (6 entradas: 2 ISOs completas + 4 partes) e notas (EN;
+instruções de `cat` + tabela de mudanças + contexto do fix Vulkan + KernelSU
+manager via sideload). Limite de asset do GitHub = 2 GiB → por isso partes.
+
+**PUBLICADO**: <https://github.com/exfurr-bash/Lineage24-for-x64/releases/tag/lineage-24.0-20261111-UNOFFICIAL-0xCAFEBABE-Generic_x86_64-live-ksu-vulkan>
+(6 assets, todos `uploaded`). Correção pós-upload: as 2 entradas da original
+tinham caminho absoluto local no `sha256sums.txt` — corrigido para nomes
+relativos e reenviado com `gh release upload --clobber`. Verificação fim-a-fim
+do fluxo do usuário: `sha256sums.txt` baixado do release → `cat` das partes →
+`sha256sum -c` **8/8 SUCESSO** + `cmp` das ISOs remontadas == locais byte a
+byte; asset `_ac` baixado do release confere com o local. Limpeza feita
+(`stage/`, `stage-test/`, `orig-verify/`, `test-ksu-vulkan.iso`,
+`user-sim/`); em `/home/iris/iso-build/` ficaram só a ISO1 + partes +
+`sha256sums.txt` + `release-notes.md`.
+
+Lembretes: a persist prop de diagnóstico
+(`persist.vendor.apex.org.lineageos.device.graphics.vulkan`) **continua setada**
+no dispositivo (limpar é opcional — o fix do vendor já está ativo na entrada
+KSU); o APK do **KernelSU manager não vai nas ISOs** — sideload dos releases
+do KSU; `ro.hwui.use_vulkan=true` ficou como item futuro opcional.
+
