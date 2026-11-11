@@ -16,6 +16,17 @@ GLES runs fully hardware-accelerated (Mesa/iris); with this build apps also see
 every one, `hardware_detect` consistently picks the Intel/ANV path, **0 mount
 failures**, and the owner reports no issues on the device.
 
+**New (2026-11-11): GApps variant.** A third ISO, `…-live-ksu-vulkan-gapps.iso`,
+is the same KernelSU + Vulkan build with the Google apps extracted from
+Google's official Android x86 build ("gbOS86"): Play Services
+(`PrebuiltGmsCore`), Play Store (`Phonesky`), Google Services Framework and the
+`com.google.android.gmssystem` APEX. Both systems are Android 17 (SDK 37) with
+identical ABI lists, so the apps drop in as-is — only the SELinux labels were
+applied. Validated in QEMU (full boot, 55 APEXes activated, 0 crashes, plus an
+interactive graphical session ended by a clean in-Android shutdown) and also
+injected into the installed system on the SSD (stock `system.img` kept as
+`system.img.stock` for rollback). Full details in [`KSU-prep.md`](KSU-prep.md) (pt-BR).
+
 ---
 
 ## Versão em português
@@ -33,11 +44,24 @@ da issue #3 do projeto.
 em todos, `hardware_detect` escolhendo o caminho Intel/ANV consistentemente,
 **0 falhas de montagem** — relato do dono: nenhum problema no dispositivo.
 
+**Novo (11/11/2026): variante com GApps.** Uma terceira ISO,
+`…-live-ksu-vulkan-gapps.iso`, é o mesmo build KernelSU + Vulkan com os apps
+Google extraídos do build oficial do Android x86 da Google ("gbOS86"): Play
+Services (`PrebuiltGmsCore`), Play Store (`Phonesky`), Google Services
+Framework e o APEX `com.google.android.gmssystem`. Os dois sistemas são
+Android 17 (SDK 37) com abilist idêntica — os apps entram como estão, só com
+os labels SELinux aplicados. Validado no QEMU (boot completo, 55 apexes,
+0 crashes, sessão gráfica interativa com shutdown limpo pelo Android) e
+injetado também no sistema instalado do SSD (stock preservado como
+`system.img.stock` para rollback). Detalhes completos no
+[`KSU-prep.md`](KSU-prep.md).
+
 ### Downloads (releases)
 
 | Asset | O quê |
 |---|---|
 | `*-live-ksu-vulkan.iso_aa/.iso_ab` | ISO live **modificada** (KernelSU + Vulkan). Junte com `cat …_aa …_ab > file.iso` |
+| `*-live-ksu-vulkan-gapps.iso_aa/.iso_ab/.iso_ac` | ISO live **modificada + GApps** (KernelSU + Vulkan + Play Store/Serviços do Google). Junte com `cat …_aa …_ab …_ac > file.iso` |
 | `lineage-24.0.iso_aa/.iso_ab` | ISO **original** oficial 20261020 (re-host, sem modificações) |
 | `sha256sums.txt` | Checksums de tudo |
 
@@ -58,6 +82,28 @@ e confira com `sha256sum -c sha256sums.txt`.
 
 Tudo documentado (com causa raiz, matriz de testes QEMU e logs) em
 [`KSU-prep.md`](KSU-prep.md) (pt-BR).
+
+### Variante GApps (ISO `*-gapps.iso`)
+
+Idêntica à ISO `ksu-vulkan`, com o `system.img` substituído pelo repack
+EROFS que contém os GApps do build oficial do Google Android x86 ("gbOS86",
+partições do `super.img` lidas **read-only**):
+
+| Conteúdo injetado | Origem |
+|---|---|
+| `product/priv-app/PrebuiltGmsCore` (Play Services) | `product_a` |
+| `product/priv-app/Phonesky` (Play Store) | `product_a` |
+| `system_ext/priv-app/GoogleServicesFramework` | `system_ext_a` |
+| `privapp-permissions-google-p/-se.xml`, `split-permissions-google.xml` | `product_a` / `system_ext_a` |
+| `sysconfig google*.xml` + `allowed_apex_…gmssystem.xml` | `product_a` |
+| `system/apex/com.google.android.gmssystem.prodvic.apex` | `product_a` |
+
+gbOS86 e Lineage 24.0 são ambos Android 17 (SDK 37) com abilist
+`x86_64,arm64-v8a` — nenhum APK foi reconstruído; só os labels SELinux foram
+aplicados (xattrs byte-exatos do `system.img` original + `matchpathcon` para
+os arquivos novos). No primeiro boot depois do flash/injeção o GMS faz o
+setup (dexopt) — mais demorado; depois disso normal. Play Store precisa de
+login de conta Google para uso completo.
 
 ### Scripts
 

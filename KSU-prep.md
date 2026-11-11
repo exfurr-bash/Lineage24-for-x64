@@ -777,3 +777,142 @@ APEX `no_apex` (features vindas do vendor), **0 `Mounting failed`**. Itens
 **deliberadamente não feitos** a pedido do usuário; item 2
 (`ro.hwui.use_vulkan=true`) permanece como experimento futuro opcional.
 
+---
+
+# Fase 4 — GApps do gbOS86 → Lineage 24.0 (11/11/2026)
+
+Pergunta que abriu a fase: *será que é possível extrair os GApps do gbOS86 e
+colocar neste Android?* Resposta final: **sim — extraídos, injetados,
+validados no QEMU (headless + gráfico), injetados no SSD e publicados em
+release.**
+
+## Fonte: o gbOS86 é o Android x86 oficial da Google
+
+Partições `p3–p6` do NVMe (GBOS_EFI/GBOSSYS/GBOS_META/GBOS_DATA — **lidas
+exclusivamente em modo read-only**). Em `p4` (GBOSSYS, vfat):
+`/mnt/gbossys/gbos/super.img` (3 688 890 368 B, dinâmico) + `super.layout` com
+os LBAs exatos de cada partição (blocos de 512 B):
+
+| partição | LBA início | tamanho |
+|---|---|---|
+| `system_a` | 2048 | 1 135 149 056 B |
+| `vendor_a` | 2222080 | 380 608 512 B |
+| `product_a` | 2965504 | 1 971 322 880 B |
+| `system_ext_a` | 6815744 | 169 869 312 B |
+
+Extração com `dd bs=512 skip=<lba> count=<n>` — sem ferramenta extra. Todas
+**EROFS** (`fsck.erofs --extract=...`).
+
+**Compatibilidade confirmada**: gbOS86 = `ro.build.version.sdk=37`,
+`release=17` (Android 17); Lineage 24.0 = SDK 37, fingerprint
+`CP2A.260605.016`, mesmo abilist `x86_64,arm64-v8a`. **Nenhum APK precisa de
+rebuild** — o GApps é drop-in.
+
+## Conjunto injetado (mínimo GMS, sem SetupWizard/Assistente/etc.)
+
+| destino no system do Lineage | origem no gbOS86 |
+|---|---|
+| `system/product/priv-app/PrebuiltGmsCore` (Play Services, 42 MB) | `product/priv-app/` |
+| `system/product/priv-app/Phonesky` (Play Store, 106 MB) | `product/priv-app/` |
+| `system/system_ext/priv-app/GoogleServicesFramework` (1,1 MB) | `system_ext/priv-app/` |
+| `system/product/etc/permissions/privapp-permissions-google-p.xml`, `split-permissions-google.xml` | `product/etc/permissions/` |
+| `system/system_ext/etc/permissions/privapp-permissions-google-se.xml` | `system_ext/etc/permissions/` |
+| `system/product/etc/sysconfig/google.xml`, `google-hiddenapi-package-whitelist.xml`, `preinstalled_packages_gms.xml`, `allowed_apex_com.google.android.gmssystem.xml` | `product/etc/sysconfig/` |
+| `system/apex/com.google.android.gmssystem.prodvic.apex` | `product/apex/` |
+
+De propósito **não** copiados: SetupWizard, Gemini, LatinIMEGoogle, AICore,
+PixelAI, etc. (evitar conflitos com o Lineage e bootloop por dependência).
+
+## Três armadilhas encontradas (e fixadas)
+
+**1. Labels SELinux: `fsck.erofs` NÃO extrai xattrs e o host está
+SELinux `Permissive`** → todo arquivo novo extraído no host recebe label de
+host (`user_home_dir_t`/`unlabeled_t`) e o `mkfs.erofs` grava esse lixo na
+imagem. Sintoma no boot: `Context system_u:object_r:user_home_dir_t is not
+valid (left unmapped)` → `restorecon failed of /system/bin/init: Read-only
+file system` → `InitFatalReboot` (crash 1). **Solução**: dump
+`getfattr -R -h -m security.selinux` do `system.img` original do p7 (montado
+em loop) — **7 489 arquivos**, aplicados byte a byte via `os.setxattr`; para
+os arquivos novos (GApps), `matchpathcon -n -f <product/system_ext/plat file_contexts>`
+com os contexts do próprio Android; labels de irmãos equivalentes para os
+que não casam com rule (`system_file`); e regra de ouro: **apex files ficam
+SEM xattr** (o stock do Lineage não tem — `/apex` na raiz é mountpoint, não
+dir de conteúdo). Validação pós-repack: 0 labels inválidos na árvore.
+
+**2. Lugar errado do apex gmssystem** — coloquei em `/apex/` na raiz da
+árvore: o apexd **nunca escaneia lá** (mountpoint). O scan é
+`/system/apex` + `/system_ext/apex` + `/product/apex` + `/vendor/apex`. Fix:
+`/system/apex/` (o dir dos 37 apexes stock).
+
+**3. Stage com `vendor_dlkm` STOCK em vez do `vendor_dlkm.ksu`** (crash 2, o
+mais insidioso): os módulos do stock são incompatíveis com o kernel KSU → 26
+falhas `Unknown symbol` → `/dev/dri` não existe → `hardware_detect` cai no
+gralloc `allocator.fb` (em vez de `minigbm_upstream`) → o fragmento VINTF
+`composer3-service.fb.xml` do allocator.fb **conflita** com o
+`composer3-service.drmfb.xml` do composer.drmfb → `servicemanager: NULL VINTF
+MANIFEST!` → keystore2 SIGABRT ×4 → `InitFatalReboot`. O boot de referência
+(`test-ref.iso`, artefatos p7 corretos, sem GApps) rodou liso com
+`Activated 54 packages` — isolou a causa em minutos. **Lição: o stage de
+teste tem que usar EXATAMENTE os mesmos artefatos da ISO verde**
+(`kernel.ksu`, `ramdisk-all-combined.ksu.img`, `vendor_dlkm.ksu.img`,
+`vendor.ksu.img`).
+
+## Validação QEMU
+
+| teste | resultado |
+|---|---|
+| round 1 (labels de host) | crash restorecon RO — pitfall 1 |
+| round 2 (vendor_dlkm stock + apex em /apex) | crash keystore2 ×4 — pitfall 2+3 |
+| referência sem GApps (`test-ref.iso`) | **VERDE**: `Activated 54 packages`, boot_completed 49,4 s, 0 crashes |
+| round 3 headless (`test-gapps.iso`) | **VERDE**: `Activated 55 packages` (54 + gmssystem — o apex do Google ativou sem rejeição de assinatura), boot_completed 65 s, 0 crashes, rodou até o timeout de 115 s |
+| sessão gráfica (GTK, ~4 min, com o dono) | **VERDE**: boot_completed 72,9 s, UI viva — desligado **pelo próprio Android** (powerctl → S5 → Power down) |
+
+Ruído igual à referência nos dois boot verdes: bluetooth SIGABRT (sem HW BT
+no QEMU), logd exit 127 — nada GMS-relacionado. Custo do GMS: ~+15 s de boot
+(65 s vs 49 s) — overhead de dexopt/serviços do GMS.
+
+## Injeção no SSD (produção)
+
+O dir `/mnt/p7/android-Generic_x86_64-ksu` (que a entrada GRUB
+`LineageOS 24.0 (KSU, persistent data)` do host usa, com
+`androidboot.android_dir=android-Generic_x86_64-ksu`) é um **overlay de
+symlinks**: `system.img`, `userdata`, `cache`, `metadata`, `firmware.img` e
+`system_dlkm.img` apontam para o dir stock; só `vendor.img`,
+`vendor_dlkm.img`, `kernel.ksu` e `ramdisk-all-combined.ksu.img` são reais.
+Logo, **injetar GApps = trocar `system.img` do dir stock**:
+
+- backup: `system.img` → `system.img.stock` (1 817 210 880 B, rollback =
+  copiar de volta);
+- novo `system.img` = imagem validada no QEMU
+  (`073b4d88c8408bef86b802c09c91c855d735cc5a081bfcd919edaf3647814b16`,
+  2 213 666 816 B);
+- sha256 conferido pós-cópia; p7 remontado `ro` depois.
+
+Primeiro boot real fará o setup do GMS (odsign/dexopt) — mais longo que o
+normal; depois disso idêntico.
+
+## ISO GApps + release
+
+Receita idêntica ao `make_iso.sh` (esqueleto da oficial + artefatos p7 +
+system GApps + `/mach_kernel` dummy do skeleton) com os títulos grub
+`(KernelSU + Vulkan)` → `(KernelSU + Vulkan + GApps)` (7 entradas). Detalhes
+que morderam: `--modification-date` exige **16 dígitos** (com centésimos); o
+`sed` de renome precisa pegar a forma `, KernelSU + Vulkan)` (sem parêntese
+inicial) além da forma `(KernelSU + Vulkan)`.
+
+Tag `lineage-24.0-20261111-UNOFFICIAL-0xCAFEBABE-Generic_x86_64-live-ksu-vulkan-gapps`
+— ISO 3 238 021 120 B em 3 partes + `sha256sums.txt`
+(`sha256` completo: `14b825b0b00d1cd107d7044697dfcbbfd3f219c0a9326293a2fc7b670ea95638`).
+
+## Rollback (se um dia precisar)
+
+```sh
+sudo mount -o remount,rw /dev/nvme0n1p7 /mnt/p7
+cp -a /mnt/p7/android-Generic_x86_64/system.img.stock \
+      /mnt/p7/android-Generic_x86_64/system.img
+sync && sudo mount -o remount,ro /dev/nvme0n1p7 /mnt/p7
+```
+
+A ISO `-gapps` fica como opção no release; o sistema instalado volta ao stock
+sem tocar em vendor/kernel/ramdisk.
+
