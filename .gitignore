@@ -1,0 +1,21 @@
+# árvores de build / fontes pesadas
+/build/
+/debian-linux/
+/extracted/
+/diag1/
+/diag_*/
+
+# backups e artefatos binários grandes
+/backup-p7-*/
+/backup-vendor-*/
+/*.iso
+*.iso
+
+# imagens (artefatos locais)
+*.img
+!vendor-vulkan-xmls/**
+
+# logs e temporários
+*.log
+/tmp/
+__pycache__/
