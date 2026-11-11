@@ -1053,6 +1053,126 @@ só builds futuros via `make_iso.sh` (que já copia o `vendor.ksu.img` novo do
 SSD). Se o rádio ligar mas o som não rotear em fones, é o follow-up de áudio
 BT/A2DP documentado acima.
 
+## Camada 2 — `btusb` nunca carrega: o pipeline por alias está quebrado (11/11/2026)
+
+O primeiro boot real com o HAL desktop **não crashou** (0 tombstones novos)
+mas o toggle continuou morto. O `dmesg` persistido pelo KernelSU
+(`userdata/adb/ksu/log/dmesg.log`, boot de 16:20) revelou a segunda camada:
+
+```
+[    8.707] usb 3-10: New USB device found, idVendor=8087, idProduct=0026   ← AX201 enumerou ✓
+[   10.784] generic_init: LoadWithAliases was unable to load
+            usb:v8087p0026d0002dcE0dsc01dp01icE0isc01ip01in00, tried: btusb  ← módulo NÃO carregou
+```
+
+- **0 mensagens `Bluetooth:` do kernel** — o `bluetooth.ko` nunca carregou
+  (ele imprime `Bluetooth: Core ver 2.22` ao subir) → não existe `hci0`.
+- O mesmo erro já existia no boot pré-fix (dmesg.old, 14:21) — bug
+  independente do HAL, presente em **todos** os boots.
+- As tentativas `LoadWithAliases` do `generic_init` (455 neste boot) tiveram
+  **0 sucessos**: o pipeline por alias/nome está quebrado para o vendor_dlkm —
+  até o `zram` falhou via `/vendor/bin/modprobe -d /vendor/lib/modules`
+  (exit 1). O que **funciona** é o carregamento **explícito por path**, lido
+  de `vendor_dlkm/lib/modules/modules.load`:
+
+```
+[    8.665] generic_init: Loading module /vendor_dlkm/lib/modules/industrialio-configfs.ko
+[    8.669] generic_init: Loading module /vendor_dlkm/lib/modules/rfkill.ko
+[    8.672] generic_init: Loading module /vendor_dlkm/lib/modules/cfg80211.ko
+```
+
+(=`modules.load`: `industrialio-configfs`, `virt_wifi` + dependências.)
+
+- O `btusb` só é alcançável por **alias USB de classe**
+  (`alias usb:v*p*d*dc*dsc*dp*icE0isc01ip01in* btusb` — existe no
+  `modules.alias`), que passa pelo pipeline quebrado → nunca carregou → o
+  HAL desktop (correto agora) não encontra controller nenhum.
+
+### Fix da camada 2 (parte 1): cadeia BT no `modules.load` (via comprovada)
+
+Repack do `vendor_dlkm.ksu.img` (mesma receita: extração + 3986 xattrs
+byte-exatos aplicados/0 faltando + append + `mkfs.erofs -zlz4
+--preserve-mtime -T 1792476383`):
+
+```
+industrialio-configfs
+virt_wifi
+bluetooth      ← imprime "Bluetooth: Core ver 2.22"
+btmtk
+btrtl
+btintel
+btbcm
+btusb          ← liga ao AX201 (classe E0/01/01) → hci0
+```
+
+Ordem de dependência: `btusb` depende de `bluetooth, btmtk, btrtl, btintel,
+btbcm`; `bluetooth` depende de `rfkill` (já carrega antes). O `btusb`
+carregando tardiamente ainda pega o dispositivo: o core USB re-sonda os
+dispositivos existentes quando o driver se registra.
+
+### O QEMU-2 revelou o bloqueador real: `modules.dep` cita arquivos que não existem
+
+A regressão do QEMU-2 (stage com o `modules.load` novo) abortou o boot:
+
+```
+dlkm_loader_mainline: dlkm loader successfully initialized
+dlkm_loader_mainline: module crc16 can't be loaded; can't access
+                      /vendor_dlkm/lib/modules/crc16.ko: No such file or directory
+dlkm_loader_mainline: LoadWithAliases was unable to load bluetooth, tried: bluetooth
+                      (idem btmtk, btrtl, btintel, btbcm, btusb)
+DEBUG: Abort message: 'Check failed: m.LoadListedModules(false)
+        modules from vendor dlkm weren't loaded correctly'
+```
+
+- O `modules.dep` (gerado por um depmod quebrado no build) cita **4 arquivos
+  que não existem em lugar nenhum** — nem ramdisk, nem system, nem gbOS86:
+  `crc16.ko` (exigido por **42 módulos**, incluindo a família BT inteira) e
+  linhas órfãs `ext4.ko`/`jbd2.ko`/`mbcache.ko`. São artefatos do build;
+  `crc16` é builtin no kernel (=y).
+- O `dlkm_loader_mainline` (loader GKI, `system/core/dlkm_loader` +
+  `libmodprobe`) faz stat de **toda** dependência antes do insmod e aborta
+  (`CHECK(LoadListedModules(false))`) se uma dep não existe → a cadeia BT
+  inteira é descartada. O `LoadWithAliases` do `generic_init` usa a mesma
+  lógica (código AOSP confirmado) — isso explica os "0 sucessos em 455
+  tentativas" de todos os boots: `EEXIST` é tolerado, "No such file" não.
+  Os logs de falha vão para o logd, não para o dmesg — por isso o boot real
+  só mostrava o sintoma, sem a causa.
+
+### Fix da camada 2 (parte 2): `modules.dep` consistente
+
+Edição do `modules.dep` na mesma árvore: remover as 4 linhas órfãs (como
+sujeito) + 41 tokens omissos (como dependência). Re-scan de consistência:
+**11 910 refs / 0 missing**. O `modules.load` mantém a cadeia BT.
+
+- **Instalado**: `vendor_dlkm.ksu.img` **e**
+  `android-Generic_x86_64-ksu/vendor_dlkm.img` (o do dir KSU é arquivo real,
+  hardlink do stock — a cópia truncou o inode compartilhado e atualizou os
+  dois). sha256 = `62aef43e961a9a2bb99279113727fafd6b7d39f9fc38b99e1c08c6c4ced114e9`
+  (183 967 744 B). A primeira tentativa (só `modules.load`, sha
+  `fc13dc801a12e353…0955a78c`) foi abortada pelo `crc16.ko` no QEMU-2 e
+  substituída por esta.
+- **Backup**: `vendor_dlkm.ksu.img.pre-bt` (sha256
+  `9ecb8cc552c55170…43b3ff7f055`).
+
+### QEMU-3 — regressão definitiva da camada 2 (verde)
+
+| critério | resultado |
+|---|---|
+| `dlkm_loader_mainline: dlkm loader successfully initialized` | ✓ 8,4 s |
+| Abort `LoadListedModules` / `CHECK failed` | **0** (QEMU-2: 1) |
+| **`Bluetooth: Core ver 2.22`** (`bluetooth.ko` no kernel) | ✓ 1,37 s — **prova que `crc16` é builtin** (0 `Unknown symbol`) |
+| Cadeia BT completa (`btmtk, btrtl, btintel, btbcm, btusb`) | ✓ carregada 2×: `generic_init` 1,35 s (via `modules.load`) e `dlkm_loader` 8,5 s (insmod de novo → `EEXIST`, tolerado sem abort) |
+| `Unknown symbol` | **0** |
+| `Activated 55 packages` (GApps) | ✓ 153 ms |
+| `sys.boot_completed=1` | ✓ |
+| `SIGABRT` / `FORTIFY` / tombstones | **0** |
+| serviço antigo `bluetooth-default` | **0** |
+
+Log: `/home/iris/gbos-gapps-test/bt-fix/qemu-bt3.log` (ISO `test-bt.iso`
+rebuildada com o `vendor_dlkm` `62aef43e…`). As duas camadas do fix BT estão
+aplicadas e validadas em emulação; o teste final é o boot real (toggle de BT
+no AX201).
+
 ### Rollback do fix BT
 
 ```sh
@@ -1061,6 +1181,10 @@ sudo cp -a /mnt/p7/android-Generic_x86_64/vendor.ksu.img.pre-bt \
            /mnt/p7/android-Generic_x86_64/vendor.ksu.img
 sudo cp -a /mnt/p7/android-Generic_x86_64/vendor.ksu.img.pre-bt \
            /mnt/p7/android-Generic_x86_64-ksu/vendor.img
+sudo cp -a /mnt/p7/android-Generic_x86_64/vendor_dlkm.ksu.img.pre-bt \
+           /mnt/p7/android-Generic_x86_64/vendor_dlkm.ksu.img
+sudo cp -a /mnt/p7/android-Generic_x86_64/vendor_dlkm.ksu.img.pre-bt \
+           /mnt/p7/android-Generic_x86_64-ksu/vendor_dlkm.img
 sudo sync && sudo mount -o remount,ro /dev/nvme0n1p7 /mnt/p7
 ```
 
