@@ -129,4 +129,5 @@ CD-ROM `/dev/block/sr0`) — inclusive em pendrives Ventoy/loopback GRUB
 - Projeto original: [IzumiSenaSora/Generic_X86_64](https://github.com/IzumiSenaSora/Generic_X86_64)
   (device tree: [`me-cafebabe-aosp-mainline`](https://github.com/orgs/me-cafebabe-aosp-mainline/repositories))
 - KernelSU: [tiann/KernelSU](https://github.com/tiann/KernelSU)
+- Gbos86: [linuxkid473/gbos-x86](https://github.com/linuxkid473/gbos-x86)
 - ISO original inclusa nos releases **sem modificações**, crédito ao projeto original
