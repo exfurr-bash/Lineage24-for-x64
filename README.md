@@ -12,6 +12,9 @@ Built and tested on a Samsung Galaxy Book4 (i5-1335U, Intel Iris Xe `8086:a7a1`)
 the same hardware reported in [upstream issue #3](https://github.com/IzumiSenaSora/Generic_X86_64/issues/3).
 GLES runs fully hardware-accelerated (Mesa/iris); with this build apps also see
 **Vulkan 1.3 via Mesa ANV** (hardware).
+**Verified in daily use (2026-11-11)**: 15+ boots logged, KernelSU active on
+every one, `hardware_detect` consistently picks the Intel/ANV path, **0 mount
+failures**, and the owner reports no issues on the device.
 
 ---
 
@@ -26,6 +29,9 @@ feature em `/vendor/etc/permissions/`). GLES já é 100 % acelerado por hardware
 
 Testado em Samsung Galaxy Book4 (i5-1335U, Iris Xe `a7a1`) — o mesmo hardware
 da issue #3 do projeto.
+**Verificado em uso real (11/11/2026)**: 15+ boots registrados, KernelSU ativo
+em todos, `hardware_detect` escolhendo o caminho Intel/ANV consistentemente,
+**0 falhas de montagem** — relato do dono: nenhum problema no dispositivo.
 
 ### Downloads (releases)
 

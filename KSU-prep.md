@@ -766,3 +766,14 @@ no dispositivo (limpar é opcional — o fix do vendor já está ativo na entrad
 KSU); o APK do **KernelSU manager não vai nas ISOs** — sideload dos releases
 do KSU; `ro.hwui.use_vulkan=true` ficou como item futuro opcional.
 
+## Status final do projeto (11/11/2026)
+
+**Confirmado pelo dono: nenhum problema no Android em uso real.** Log do boot
+mais recente (`early_logcat.log`, 05:01 de 11/11 — 15 sessões registradas,
+todas kernel `7.2.0+`): `KernelSU: welcome` (32680), `hardware_detect: Set
+Vulkan module to intel` (ANV/Iris Xe na máquina real, como projetado),
+APEX `no_apex` (features vindas do vendor), **0 `Mounting failed`**. Itens
+1 (limpar persist prop), 3 (comentário upstream) e 4 (CI) ficaram
+**deliberadamente não feitos** a pedido do usuário; item 2
+(`ro.hwui.use_vulkan=true`) permanece como experimento futuro opcional.
+
