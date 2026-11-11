@@ -27,6 +27,17 @@ interactive graphical session ended by a clean in-Android shutdown) and also
 injected into the installed system on the SSD (stock `system.img` kept as
 `system.img.stock` for rollback). Full details in [`KSU-prep.md`](KSU-prep.md) (pt-BR).
 
+**2026-11-11 — Bluetooth root-caused.** The Bluetooth toggle doesn't work on
+x86 hardware: the build ships the AOSP **UART (H4) default HAL**, which cannot
+drive USB-attached controllers (e.g. this machine's Intel AX201 `8087:0026`) —
+the HAL aborts (`FORTIFY: FD_SET: fd -1 < 0`) and takes the Bluetooth stack
+down with it. Google's official x86 build ships a **Rust
+`bluetooth-service.desktop` HAL** made for exactly this class of hardware
+(same `IBluetoothHci/default` AIDL — a drop-in swap). The kernel side is
+already complete (`btusb.ko` + `btintel.ko` present; `firmware.img` already
+carries `intel/ibt-0040-4150.sfi/.ddc`). Fix mapped — vendor repack porting
+the desktop HAL from the official build; details in `KSU-prep.md` ("Fase 5").
+
 ---
 
 ## Versão em português
@@ -55,6 +66,18 @@ os labels SELinux aplicados. Validado no QEMU (boot completo, 55 apexes,
 injetado também no sistema instalado do SSD (stock preservado como
 `system.img.stock` para rollback). Detalhes completos no
 [`KSU-prep.md`](KSU-prep.md).
+
+**Bluetooth — causa raiz encontrada (11/11/2026).** O toggle de BT não
+funciona em hardware x86: o build traz o HAL AOSP **default orientado a
+UART (H4)**, que não consegue dirigir controllers **USB** (neste máquina,
+Intel AX201 `8087:0026`) — o HAL aborta (`FORTIFY: FD_SET: fd -1 < 0`) e leva
+o stack de BT junto. O build oficial x86 da Google traz um HAL próprio em
+**Rust** (`bluetooth-service.desktop`), feito exatamente para essa classe de
+hardware, com o **mesmo AIDL** `IBluetoothHci/default` — troca drop-in. O
+lado kernel já está completo (`btusb.ko` + `btintel.ko` presentes;
+`firmware.img` já traz `intel/ibt-0040-4150.sfi/.ddc`). Fix mapeado — repack
+do vendor portando o HAL desktop do build oficial; detalhes no
+`KSU-prep.md` ("Fase 5").
 
 ### Downloads (releases)
 

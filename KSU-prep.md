@@ -916,3 +916,101 @@ sync && sudo mount -o remount,ro /dev/nvme0n1p7 /mnt/p7
 A ISO `-gapps` fica como opção no release; o sistema instalado volta ao stock
 sem tocar em vendor/kernel/ramdisk.
 
+---
+
+# Fase 5 — Bluetooth: causa raiz e fix (11/11/2026)
+
+**Sintoma**: o toggle de Bluetooth não funciona no Book4. Nos logs de boot,
+`vendor.bluetooth-default` recebe `SIGABRT` e crasha 4×; o `com.android.bluetooth`
+(stack Java) também morre. O mesmo ruído aparecia no QEMU — não era "falta de
+hardware no QEMU": era o mesmo bug de software.
+
+## Evidência (tombstones reais do dispositivo)
+
+```
+Cmdline: /vendor/bin/hw/android.hardware.bluetooth-service.default
+signal 6 (SIGABRT), code -1 (SI_QUEUE)
+Abort message: 'FORTIFY: FD_SET: file descriptor -1 < 0'
+backtrace:
+  #00 __fortify_fatal (bionic)
+  #01 __FD_SET_chk (bionic)
+  #02 android::hardware::bluetooth::async::AsyncFdWatcher::tryStartThread()
+```
+
+```
+Cmdline: com.android.bluetooth
+Abort message: 'system/gd/hal/hci_backend_aidl.cc:43 initializationComplete:
+                status == AidlStatus::SUCCESS'
+#04 bluetooth::hal::AidlHciCallbacks::initializationComplete(...)
+    (libbluetooth_jni.so, /apex/com.android.bt)
+```
+
+## Causa raiz (cadeia completa)
+
+1. O build do Lineage Generic_x86_64 vem com o HAL **AOSP default**
+   (`android.hardware.bluetooth-service.default`), que é orientado a
+   **UART/H4** (`android.hardware.bluetooth.hci-h4`, `/dev/tty*`, `/dev/hvc*`).
+2. O Bluetooth do Book4 é **Intel AX201 via USB** (`lsusb`: `8087:0026`) —
+   não existe UART → o HAL não consegue abrir o fd do transporte → fd `-1`.
+3. O `AsyncFdWatcher` faz `FD_SET(-1)` → **FORTIFY** do bionic aborta
+   (`SIGABRT`) — em vez de reportar falha graciosamente. Crash loop ×4.
+4. Enquanto isso o stack Java (`com.android.bluetooth`, no APEX
+   `com.android.bt`) conecta ao HAL e recebe `initializationComplete(FAILURE)`
+   → `CHECK` falha → o stack também morre.
+5. No QEMU acontece o mesmo (não há HCI nenhum) — por isso o mesmo SIGABRT.
+
+**Não é problema de firmware nem de módulos de kernel**: o `firmware.img` do
+build **já traz** `intel/ibt-0040-4150.sfi` + `.ddc` (exatamente o que este
+AX201 pede — confirmado no dmesg do host CachyOS: "Found device firmware:
+intel/ibt-0040-4150.sfi"), e o `vendor_dlkm.ksu` tem os 18 `bt*.ko`
+incluindo **`btusb.ko` + `btintel.ko`** (a cadeia USB→`hci0`→firmware está
+completa).
+
+## O que o gbOS86 usa (e o Lineage não tem)
+
+O Android x86 oficial da Google traz um HAL **diferente, feito para
+desktops**:
+
+| | Lineage (upstream) | gbOS86 (Google) |
+|---|---|---|
+| binário | `bluetooth-service.default` (C++, UART/H4) | **`android.hardware.bluetooth-service.desktop`** (Rust, `bthcihal`) |
+| service | `vendor.bluetooth-default` | `vendor.bluetooth-desktop` |
+| VINTF | `IBluetoothHci/default` | `IBluetoothHci/default` (**idêntico** → troca seamless) |
+| feature xml | `android.hardware.bluetooth.prebuilt.xml` | `android.hardware.bluetooth.xml` + `_le.xml` |
+
+O HAL desktop do Google é Rust e registra também
+`android.desktop.bluetooth.hcihal.IHciTool/default` (debug hcitool).
+
+## Fix mapeado (port do vendor_a do gbOS86 → repack do `vendor.ksu.img`)
+
+**Adicionar** (labels copiados dos templates do próprio vendor — o binário
+usa o MESMO domain `hal_bluetooth_default`):
+
+| arquivo | label SELinux |
+|---|---|
+| `bin/hw/android.hardware.bluetooth-service.desktop` | `hal_bluetooth_default_exec` |
+| `lib64/libbthcihal.dylib.so`, `libandroid_desktop_bluetooth_hcihal.dylib.so`, `libandroid_hardware_bluetooth_V1.dylib.so`, `libbinder_ndk_sys.dylib.so`, `libbinder_rs_ndk_compat.dylib.so`, `libbytes.dylib.so`, `libmio.dylib.so`, `libpdl_runtime.dylib.so` | `vendor_file` |
+| `etc/init/bluetooth-service-desktop.rc`, `etc/vintf/manifest/bluetooth-service-desktop.xml`, `etc/permissions/android.hardware.bluetooth.xml` + `_le.xml` | `vendor_configs_file` |
+| `etc/selinux/vendor_service_contexts` | **append** da linha `android.desktop.bluetooth.hcihal.IHciTool/default u:object_r:hal_bluetooth_service:s0` (NÃO portar o arquivo inteiro — os outros tipos não existem na nossa policy) |
+
+(`libstd`, `libtokio`, `libbinder_rs`, `liblog_rust`, `liblogger` já existem
+no `system/lib64` do Lineage — confirmado.)
+
+**Remover** (evita conflito VINTF — dois providers de `IBluetoothHci/default`
+= o mesmo padrão fatal do conflito composer3 da Fase Vulkan):
+
+- `bin/hw/android.hardware.bluetooth-service.default`
+- `etc/init/bluetooth-service-default.rc`
+- `etc/vintf/manifest/bluetooth-service-default.xml`
+
+**Opcional (áudio BT/A2DP)**: `etc/bluetooth_audio_policy_configuration_7_0.xml`
++ `lib64/android.hardware.bluetooth.audio-impl.so` / `-V6-ndk` / `@2.0` /
+`@2.1` do gbOS — sem eles o rádio funciona mas A2DP/LE-audio não roteia som.
+
+**Áudio BT é follow-up separado** (se A2DP ficar mudo, portar esses arquivos
+no próximo repack).
+
+**Status: diagnóstico concluído; fix mapeado e pronto para aplicar** — o
+repack segue a mesma receita validada (`mkfs.erofs` lz4 + relabel + backup +
+QEMU de regressão).
+
