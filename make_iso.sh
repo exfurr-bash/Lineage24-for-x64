@@ -15,7 +15,9 @@ set -euo pipefail
 ASRC=${1:-/mnt/p7/android-Generic_x86_64}
 ORIGISO=${2:-/home/iris/lineage-24.0.iso}
 OUT=${3:-/home/iris/iso-build/lineage-24.0-20261111-UNOFFICIAL-0xCAFEBABE-Generic_x86_64-live-ksu-vulkan.iso}
-STAGE=$(mktemp -d /tmp/mkiso-stage.XXXXXX)
+# stage junto da saída (não em /tmp: o stage tem ~3,2 GiB e /tmp costuma ser tmpfs)
+STAGE=$(mktemp -d "$(dirname "$OUT")/.mkiso-stage.XXXXXX")
+trap 'rm -rf "$STAGE"' EXIT
 X="xorriso -osirrox on -indev $ORIGISO"
 die(){ echo "ERRO: $*" >&2; exit 1; }
 [ "$(id -u)" = 0 ] || die "rode com sudo"

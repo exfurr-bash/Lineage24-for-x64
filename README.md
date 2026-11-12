@@ -62,8 +62,11 @@ the entire runtime (`libstd`, `liblogger`, `liblog_rust`, `libtokio`,
 `libenv_filter`, `libsignal_hook_registry`, `libsocket2`, `liberrno`). All
 10 were ported from the original image (SELinux labels preserved) and the
 HAL now links, registers `IBluetoothHci/default` in the VINTF manifest and
-stays up — QEMU-validated ("Camada 3" in `KSU-prep.md`). Release ISOs built
-before these fixes don't include them — future `make_iso.sh` builds will.
+stays up — QEMU-validated ("Camada 3" in `KSU-prep.md`).
+
+**All fixes released**: the 20261112 GApps live ISO (the latest release)
+ships everything — KernelSU, Vulkan, GApps and the complete Bluetooth
+repair. Older release ISOs predate the Bluetooth fixes.
 
 ---
 
@@ -130,16 +133,18 @@ fora o runtime inteiro (`libstd`, `liblogger`, `liblog_rust`, `libtokio`,
 `libenv_filter`, `libsignal_hook_registry`, `libsocket2`, `liberrno`). As
 10 foram portadas da imagem original (labels SELinux preservados) e o HAL
 agora liga, registra `IBluetoothHci/default` no VINTF e permanece vivo —
-validado no QEMU ("Camada 3" no `KSU-prep.md`). As ISOs do release
-publicadas antes dos fixes não os incluem — builds futuros via
-`make_iso.sh` sim.
+validado no QEMU ("Camada 3" no `KSU-prep.md`).
+
+**Release com todos os fixes**: a ISO GApps de 20261112 (release mais
+recente) traz tudo — KernelSU, Vulkan, GApps e o conserto completo do
+Bluetooth. Os releases anteriores são anteriores aos fixes de BT.
 
 ### Downloads (releases)
 
 | Asset | O quê |
 |---|---|
 | `*-live-ksu-vulkan.iso_aa/.iso_ab` | ISO live **modificada** (KernelSU + Vulkan). Junte com `cat …_aa …_ab > file.iso` |
-| `*-live-ksu-vulkan-gapps.iso_aa/.iso_ab/.iso_ac` | ISO live **modificada + GApps** (KernelSU + Vulkan + Play Store/Serviços do Google). Junte com `cat …_aa …_ab …_ac > file.iso` |
+| `*-live-ksu-vulkan-gapps.iso_aa/.iso_ab/…` | ISO live **modificada + GApps** (KernelSU + Vulkan + Play Store/Serviços do Google). A partir do release **20261112**, inclui o fix completo do Bluetooth. Junte com `cat …_aa …_ab … > file.iso` (nº de partes varia por release) |
 | `lineage-24.0.iso_aa/.iso_ab` | ISO **original** oficial 20261020 (re-host, sem modificações) |
 | `sha256sums.txt` | Checksums de tudo |
 
