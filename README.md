@@ -52,7 +52,17 @@ HAL, there was no `hci0` for it to drive. Fix: the BT module chain
 `modules.load` and the dangling `modules.dep` references were pruned in
 `vendor_dlkm.ksu.img`. QEMU regression is fully green: `Bluetooth: Core ver
 2.22` in the kernel log, `dlkm_loader` clean (0 aborts), 0 SIGABRT, GApps
-intact. Details in `KSU-prep.md` ("Fase 5" + "Camada 2"). Release ISOs built
+intact. Details in `KSU-prep.md` ("Fase 5" + "Camada 2").
+
+A **third gap** was found the same day: the ported desktop HAL started and
+died with exit 1 in ~80 ms — its **Rust dylib closure was incomplete**. The
+desktop build links Rust dynamically (`*.dylib.so`), and the port had missed
+the entire runtime (`libstd`, `liblogger`, `liblog_rust`, `libtokio`,
+`libbinder_rs`) plus 5 transitive deps (`libandroid_logger`,
+`libenv_filter`, `libsignal_hook_registry`, `libsocket2`, `liberrno`). All
+10 were ported from the original image (SELinux labels preserved) and the
+HAL now links, registers `IBluetoothHci/default` in the VINTF manifest and
+stays up — QEMU-validated ("Camada 3" in `KSU-prep.md`). Release ISOs built
 before these fixes don't include them — future `make_iso.sh` builds will.
 
 ---
@@ -110,8 +120,18 @@ de módulos BT (`bluetooth, btmtk, btrtl, btintel, btbcm, btusb`) entrou no
 `modules.load` e as referências órfãs do `modules.dep` foram removidas no
 `vendor_dlkm.ksu.img`. QEMU de regressão 100 % verde: `Bluetooth: Core ver
 2.22` no kernel log, `dlkm_loader` limpo (0 aborts), 0 SIGABRT, GApps
-intactas. Detalhes no `KSU-prep.md` ("Fase 5" + "Camada 2"). As ISOs do
-release publicadas antes dos fixes não os incluem — builds futuros via
+intactas. Detalhes no `KSU-prep.md` ("Fase 5" + "Camada 2").
+
+**Terceira falha no mesmo dia**: o HAL desktop portado iniciava e morria com
+exit 1 em ~80 ms — o **closure de dylibs Rust estava incompleto**. O build
+desktop liga Rust dinamicamente (`*.dylib.so`) e o port tinha deixado de
+fora o runtime inteiro (`libstd`, `liblogger`, `liblog_rust`, `libtokio`,
+`libbinder_rs`) mais 5 dependências transitivas (`libandroid_logger`,
+`libenv_filter`, `libsignal_hook_registry`, `libsocket2`, `liberrno`). As
+10 foram portadas da imagem original (labels SELinux preservados) e o HAL
+agora liga, registra `IBluetoothHci/default` no VINTF e permanece vivo —
+validado no QEMU ("Camada 3" no `KSU-prep.md`). As ISOs do release
+publicadas antes dos fixes não os incluem — builds futuros via
 `make_iso.sh` sim.
 
 ### Downloads (releases)

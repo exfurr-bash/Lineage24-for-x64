@@ -1173,6 +1173,60 @@ rebuildada com o `vendor_dlkm` `62aef43e…`). As duas camadas do fix BT estão
 aplicadas e validadas em emulação; o teste final é o boot real (toggle de BT
 no AX201).
 
+## Camada 3 — closure de dependências do HAL incompleto (11/11/2026)
+
+O boot real pós-camada-2 (16:53) confirmou o kernel **perfeito** — mas o
+toggle continuou morto, agora por causa do HAL:
+
+```
+[    8.834] Bluetooth: Core ver 2.22                        ← stack kernel VIVA
+[    8.857] Bluetooth: hci0: Device revision is 2           ← AX201 detectado
+[    8.896] Bluetooth: hci0: Found device firmware: intel/ibt-0040-4150.sfi
+[   10.291] Bluetooth: hci0: Device booted in 15372 usecs   ← firmware OK
+[   10.297] Bluetooth: hci0: Applying Intel DDC parameters completed
+[   25.958] init: starting service 'vendor.bluetooth-desktop'... (pid 874)
+[   26.038] init: Service 'vendor.bluetooth-desktop' (pid 874) exited with status 1  ← 80 ms!
+   (init reinicia a cada ~5 s, para sempre)
+```
+
+- `rfkill unblock all` ok; sem tombstone (exit **limpo** com código 1) = a
+  falha é de **inicialização** do processo, não de rádio.
+- Causa: a camada 1 portou o binário + 8 libs, mas o **closure de
+  dependências dinâmicas ficou incompleto**. O build desktop do gbOS liga
+  **Rust dinamicamente** (`*.dylib.so`); `readelf -d` do binário listava 10
+  NEEDED e **5 não estavam no vendor portado**: `libstd`, `liblogger`,
+  `liblog_rust`, `libtokio`, `libbinder_rs` (o runtime Rust inteiro). Ao
+  copiá-las, o closure revelou 5 novas faltantes em cascata:
+  `libandroid_logger`, `libenv_filter`, `libsignal_hook_registry`,
+  `libsocket2`, `liberrno`. **10 libs novas** ao todo, todas existentes no
+  gbOS original com label `vendor_file` (idênticas aos irmãos já portados).
+- Verificação automática: closure recursivo sobre `NEEDED` (whitelist de
+  LL-NDK: `libc/libm/libdl/liblog/libbinder_ndk`) → **0 missing**.
+- `stdio_to_kmsg` adicionado ao `bluetooth-service-desktop.rc` — a partir de
+  agora qualquer erro do HAL aparece no dmesg.
+- **Repack**: sha256
+  `29c5e71047bfd0097286f28281fbb003ebd65b790c46919e7e71001f051682ec`
+  (220 385 280 B), instalado em `vendor.ksu.img` **e**
+  `android-Generic_x86_64-ksu/vendor.img`.
+- **Backup** do estado camada-1: `vendor.ksu.img.l1` (sha256
+  `115019425ce0aedc8fd58d81d44487369a88549ec4ef4dbded9e60f3d43ec68e`).
+
+### QEMU-4 — regressão da camada 3 (verde)
+
+| critério | resultado |
+|---|---|
+| Erros de linker (`cannot link` etc.) | **0** (antes: HAL exit 1 em 80 ms) |
+| `vendor.bluetooth-desktop` | inicia 10,6 s e **permanece vivo** — 0 linhas de exit (antes: loop exit 1 a cada ~5 s) |
+| Registro VINTF | `servicemanager: Caller(pid=587,uid=1002,sid=u:r:hal_bluetooth_default:s0) Found android.hardware.bluetooth.IBluetoothHci/default` — HAL registrado ✓ |
+| Stack Java procura o HAL | `u:r:bluetooth:s0` chama `getService` a cada ~4 s (52 s, 57 s, 60 s, 64 s, 89 s) — no QEMU não há controller real, a init não completa (esperado) |
+| `Activated 55 packages` / `boot_completed=1` | ✓ / ✓ |
+| `SIGABRT` / `FORTIFY` / tombstones | **0** |
+| `Bluetooth: Core ver 2.22` (vendor_dlkm intocado) | ✓ |
+| `bluetooth-default` (serviço antigo) | **0** |
+
+Log: `/home/iris/gbos-gapps-test/bt-fix/qemu-bt4.log`. O HAL agora liga,
+registra no VINTF e fica aguardando a stack; o teste final é o boot real.
+
 ### Rollback do fix BT
 
 ```sh
