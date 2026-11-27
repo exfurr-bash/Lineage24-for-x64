@@ -1,0 +1,68 @@
+# Fontes pinadas do projeto. Formato KEY=VALOR (sem shell/eval).
+# Atualize somente com `scripts/fetch_sources.sh --refresh-pins` e revisão
+# manual. `make fetch` verifica cada sha256 antes de usar.
+#
+# GitHub publica o sha256 dos assets em /releases (campo `digest`); usamos
+# esse valor. O sha256 combinado da ISO é anotado após o primeiro download
+# validado.
+
+# ----------------------------- base upstream ------------------------------
+BASE_RELEASE=20261020
+BASE_RELEASE_TAG=lineage-24.0-20261020-UNOFFICIAL-0xCAFEBABE-Generic_x86_64-live
+BASE_RELEASE_BASE_URL=https://github.com/IzumiSenaSora/Generic_X86_64/releases/download/lineage-24.0-20261020-UNOFFICIAL-0xCAFEBABE-Generic_x86_64-live
+BASE_ASSET_AA=lineage-24.0_aa
+BASE_ASSET_AA_SHA256=b42ebd16f855cb1314194bb065557a738443ce8920955ae1d3aa146aa93cc901
+BASE_ASSET_AB=lineage-24.0_ab
+BASE_ASSET_AB_SHA256=7013b32d12390e7f985b5d66018644cfff9057ce3405257f8bad83dbc6464ff0
+# Hash completo do arquivo unido (64 hex). Vazio = confia nos hashes das
+# partes; preenchido após `--refresh-pins`.
+BASE_ISO_SHA256=
+
+# ----------------------------- release futuro -----------------------------
+# Documentado para a migração (não usado por padrão).
+RELEASE_NEXT=20261122
+RELEASE_NEXT_TAG=lineage-24.0-20261122-UNOFFICIAL-0xCAFEBABE-Generic_x86_64-live
+RELEASE_NEXT_BASE_URL=https://github.com/IzumiSenaSora/Generic_X86_64/releases/download/lineage-24.0-20261122-UNOFFICIAL-0xCAFEBABE-Generic_x86_64-live
+RELEASE_NEXT_AA_SHA256=a00d0c35d1a6db14d26b1b1452adc96c378f7b8ec22ae43dcd201d6048da1150
+RELEASE_NEXT_AB_SHA256=0dafad9058b1da022b1b343595a906952d0e7169e95b48307f57a2df1f5649a4
+RELEASE_NEXT_KERNEL_COMMIT=5201b511c7c80
+RELEASE_NEXT_KERNEL_SERIES=7.3
+
+# ----------------------------- kernel / KSU -------------------------------
+KERNEL_REPO=https://android.googlesource.com/kernel/common
+KERNEL_COMMIT=a2a0ccf4c10574fde950e554abffd9bdc9aec676
+KERNEL_SERIES=7.2
+KSU_REPO_URL=https://github.com/tiann/KernelSU.git
+KSU_TAG=v3.3.1
+KSU_COMMIT=0c0fdb960178fa12d80d6cbcfdcb6ad8be6a865d
+
+# XMLs AOSP versionados no repositório; fetch_sources.sh confere estes pins.
+VULKAN_XML_COMPUTE_SHA256=65e26b6a034aa3cf8d4821e2820c3a0fcc55307a567dfaf2efde4e9988464561
+VULKAN_XML_LEVEL_SHA256=8d78cbae54e60692944a5a8ea4fb41a5d8ac3b0f7ca467028e7b8e6552dc13bc
+VULKAN_XML_VERSION_SHA256=e4674544be7703fdcc26afec72cbaa6d63d905e76bd88377f64003dedec75959
+VULKAN_XML_GLES_DEQP_SHA256=34626317ea5cd9caa0187e15d21c72debcbcec0554e412a00f1f02cd209e2eda
+VULKAN_XML_VK_DEQP_SHA256=6225633850269e495b28b033f83212f4efb0970c61c2b8254a54648ed88e8097
+
+# ----------------------------- gbOS86 (GApps/BT) --------------------------
+# O gbOS86 não publica imagens de sistema no GitHub: o build.sh baixa a
+# recovery oficial do Google e extrai as partições. Pinamos o commit do repo
+# e a URL/sha256 da recovery. Nenhum blob é redistribuído por este projeto.
+GBOS_REPO_URL=https://github.com/linuxkid473/gbos-x86.git
+GBOS_COMMIT=8963af72be05b8e69dd997c11352a6cb4d6b70d0
+GBOS_BUILD_ID=16693588
+GBOS_BUILD_VERSION=CL3B.260622.276.R5
+GBOS_RECOVERY_URL=https://dl.google.com/device/recovery/lapis-user/16693588/recovery.zip
+GBOS_RECOVERY_SHA256=11fa52682aac5372ff0d149c7b64c6e165024265b292a5e6d0ba9c6ec936b351
+GBOS_RECOVERY_SIZE=7700000000
+GBOS_PARTS="vendor_a product_a system_ext_a"
+
+# ----------------------------- GApps alternativa --------------------------
+# Perfil "github-gapps": system.img pronto do upstream (20260914), 100% GitHub,
+# porém de base mais antiga e SEM o HAL desktop de Bluetooth.
+UPSTREAM_GAPPS_TAG=lineage-24.0-20260914-0xCAFEBABE-Generic_x86_64-system-with-gapps
+UPSTREAM_GAPPS_BASE_URL=https://github.com/IzumiSenaSora/Generic_X86_64/releases/download/lineage-24.0-20260914-0xCAFEBABE-Generic_x86_64-system-with-gapps
+UPSTREAM_GAPPS_ASSET_AA=lineage-24.0-20260914-0xCAFEBABE-Generic_x86_64-system-with-gapps.img_aa
+UPSTREAM_GAPPS_ASSET_AA_SHA256=07060d8c7d9cfe54dfce331bd487823c2d655c1a372c10320ce082847907531c
+UPSTREAM_GAPPS_ASSET_AB=lineage-24.0-20260914-0xCAFEBABE-Generic_x86_64-system-with-gapps.img_ab
+UPSTREAM_GAPPS_ASSET_AB_SHA256=f16ebba02572fafe5e0fbddf8a10172ca02d9beef003b62c3331b8a8213e44da
+UPSTREAM_GAPPS_IMG_SHA256=596b9d6f7ef836000becfa8ba99cf32e254f6a376d14b7d520acdd8b1b6cce1d

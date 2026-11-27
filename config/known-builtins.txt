@@ -1,0 +1,9 @@
+# Módulos que podem aparecer em modules.dep do stock, mas que são builtin no
+# kernel novo (não existem como .ko). O flatten_depmod.py também lê o
+# modules.builtin do build novo; esta lista cobre referências do stock que
+# não estão naquela árvore.
+ext4.ko
+jbd2.ko
+mbcache.ko
+crc16.ko
+crc32c.ko

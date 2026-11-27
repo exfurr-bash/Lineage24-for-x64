@@ -50,8 +50,7 @@ mais os mesmos `cset` nos EnableSequence dos devices em `HDA/HiFi-spk.conf` (Spe
 Script pronto e idempotente:
 
 ```sh
-sudo /home/iris/android17/patch_vendor_ucm_volume.sh /caminho/da/android-dir/vendor.img
-# sem argumento: usa /mnt/p7/android-Generic_x86_64/vendor.img
+sudo scripts/patch_vendor_ucm_volume.sh /caminho/vendor.img --out /caminho/vendor-patched.img
 ```
 
 O patch (ferramentas em `extracted/erofs-inst/bin`):
@@ -63,7 +62,12 @@ O patch (ferramentas em `extracted/erofs-inst/bin`):
    `ro.surface_flinger.enable_frame_rate_override=true` na linha 62 e
    `ro.boot.hwc_apex=2` na 161 antes de trocar a imagem);
 4. reempacota com `mkfs.erofs -zlz4 --mount-point=/vendor --preserve-mtime -T <ts original>`;
-5. monta em loop e valida os `cset` antes de trocar o arquivo (backup `.before_ucm`).
+5. grava em `.new`, valida os `cset`, salva manifesto e backup timestamped
+   da saída existente antes de substituir o destino escolhido.
+
+O fluxo do repositório mantém a imagem stock de entrada intacta. Para
+combinar o fix de som com HWC/Vulkan, use `make vendor` ou uma única execução
+de `scripts/build_vendor.sh` com todas as opções desejadas.
 
 ## Verificação
 
@@ -107,21 +111,17 @@ funcionando por cima (volume de software, curva de índice → dB do APM).
 
 ## Rollback
 
-`vendor.img.before_ucm` (estado pré-fix-de-som) fica do lado do `vendor.img`:
-
-```sh
-sudo cp vendor.img.before_ucm vendor.img
-```
-
-Para voltar ao estado totalmente original (antes de AMBOS os fixes):
-`sudo cp vendor.img.orig vendor.img` — mas isso também reverte o fix do bootloop.
+Para restaurar a saída anterior, execute
+`sudo scripts/build_vendor.sh --base /caminho/vendor.img --out /caminho/vendor-patched.img --rollback`.
+Se ainda não existia uma saída, o rollback só remove o artefato criado quando
+o hash dele ainda confere com o manifesto; a imagem base fica preservada.
 
 ## Notas de manutenção
 
 - **Re-executar o patch após reinstalação/OTA** (o `vendor.img` é substituído).
-- Executar primeiro `patch_vendor_hwc.sh` e depois `patch_vendor_ucm_volume.sh`
-  (ou vice-versa): ambos preservam as edições do outro — o script de UCM valida o
-  `build.prop` antes de trocar.
+- Para aplicar os dois fixes, execute `make vendor` ou use `build_vendor.sh`
+  uma única vez com `--hwc --ucm`; chamadas separadas partem cada uma da imagem
+  base informada.
 - Se o upstream reestruturar os arquivos UCM (`Intel/sof-hda-dsp/HiFi.conf`,
   `HDA/HiFi-spk.conf`, `HDA/HiFi-analog.conf`), os âncoras do script precisam de ajuste.
 - O patch mexe **somente no volume analógico em hardware** (DAC amps); o volume de

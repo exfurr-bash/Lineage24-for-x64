@@ -1,0 +1,5 @@
+# Configuração do shellcheck para o projeto.
+# A biblioteca é carregada por caminho dinâmico ($SCRIPT_DIR/lib/common.sh);
+# o shellcheck não resolve isso, mas o CI executa bash -n + os testes.
+source-path=SCRIPTDIR
+disable=SC1091,SC2034

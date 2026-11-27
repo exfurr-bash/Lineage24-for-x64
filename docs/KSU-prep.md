@@ -10,6 +10,11 @@
 > **Fase 2 (nova): aceleração gráfica** — Android usa só OpenGL ES, sem
 > Vulkan (ver seção "Fase 2" no fim).
 
+> **Nota de reprodução:** este arquivo registra uma investigação histórica
+> feita em um host e em um SSD específicos. Os caminhos e logs antigos abaixo
+> são contexto, não entradas do build atual. Para reproduzir o fluxo atual,
+> use os downloads e pins de docs/SOURCES.md e os alvos do Makefile.
+
 ## Kernel panic no 1º boot KSU: causa raiz, diagnóstico e fixes (2026-11-09)
 
 ### Sintoma
@@ -83,7 +88,7 @@ protegendo contra a classe inteira de falha.
 - bzImage versionado `#6` (o que panicou era o `#4`; o `#5` foi
   intermediário, nunca aplicado).
 - **`Module.symvers` byte-idêntico** ao build anterior (IBT=y; backup em
-  `/tmp/opencode/Module.symvers.ibt-y.bak`) → CRCs MODVERSIONS inalterados →
+  `$HOME/tmp/opencode/Module.symvers.ibt-y.bak`) → CRCs MODVERSIONS inalterados →
   **módulos NÃO rebuildados**; `modstaging` reutilizado no repack.
 - Config embutido verificado no `kernel.ksu` instalado (extract-ikconfig):
   `CONFIG_KSU=y`, `CONFIG_KSU_X86_PATCH_SYSCALL_DISPATCHER=y`,
@@ -196,8 +201,8 @@ protegendo contra a classe inteira de falha.
   ramdisk KSU) carregam **no kernel stock** sem nenhum erro BTF → o strip é
   portável; falhas restantes são as de sempre (snd-pcsp EBUSY, drm ENOENT,
   intel-cstate ENODEV — benignas, iguais no boot stock).
-- Logs: `/tmp/opencode/q-sanity3.log` (ro), `/tmp/opencode/q-sanity4.log`
-  (snapshot), `/tmp/opencode/q-sanity4-stock.log` (stock×stock).
+- Logs: `$HOME/tmp/opencode/q-sanity3.log` (ro), `$HOME/tmp/opencode/q-sanity4.log`
+  (snapshot), `$HOME/tmp/opencode/q-sanity4-stock.log` (stock×stock).
 
 ### Prevenção no build (build_kernel_ksu.sh)
 - `CONFIG_MODULE_ALLOW_BTF_MISMATCH=y` no `CONFIG_APPEND` + guarda
@@ -253,7 +258,7 @@ protegendo contra a classe inteira de falha.
 | T-B | KSU v3 | KSU v3 | original | ❌ EOPNOTSUPP → reboot bootstrap |
 | T-D | stock | stock | `-ksu` (repack nosso) | ✅ `Activated 10 packages. duration=34ms` |
 
-→ culpado **único**: o kernel KSU v3. Logs: `/tmp/opencode/q-TA.log`,
+→ culpado **único**: o kernel KSU v3. Logs: `$HOME/tmp/opencode/q-TA.log`,
 `q-TB.log`, `q-TD.log` (voláteis — /tmp é limpo no reboot do host).
 
 ### Mecanismo (corrente fechada em código)
@@ -319,7 +324,7 @@ protegendo contra a classe inteira de falha.
   refeito — **`.BTF_ids` é seção de runtime e fica**, nos 4 módulos que a
   têm: `nf_flow_table`, `fou`, `tcp_bbr`, `tcp_dctcp`; hardlink do dir
   `-ksu` atualizado, nlink=2).
-- Log: `/tmp/opencode/q-TE.log` (volátil — /tmp é limpo no reboot do host).
+- Log: `$HOME/tmp/opencode/q-TE.log` (volátil — /tmp é limpo no reboot do host).
 - **Retest real (v4): ✅ SUCESSO** — usuário confirmou boot completo
   "funcionou perfeitamente" na entrada KSU (2026-11-10). Diagnóstico do
   boot 3 fechado: nenhum resíduo.
@@ -410,7 +415,7 @@ com entrada GRUB separada e rollback fácil.
 | Árvore | `android.googlesource.com/kernel/common`, branch `android-mainline` |
 | Versão | 7.2.0+ (bzImage "Linux version 7.2.0+ … Tue Oct 20 00:00:00 UTC 2026") |
 | **Pin** | **`a2a0ccf4c10574fde950e554abffd9bdc9aec676`** ("Merge tag 'v7.2' into android-mainline", 2026-10-02) — do release notes oficiais do repo (20261020: "Linux kernel: based on android-mainline v7.2.0 @ a2a0ccf4c105") |
-| Config | extraída/com `extract-ikconfig` do kernel instalado (11980 linhas, arquivo `/tmp/opencode/kernel-current.config`, vai para `configs-extra/kernel-current.config`) |
+| Config | extraída/com `extract-ikconfig` do kernel instalado (11980 linhas, arquivo `$HOME/tmp/opencode/kernel-current.config`, vai para `configs-extra/kernel-current.config`) |
 | Patches LineageOS | topic `mainline-kernel`: `drm/vmwgfx ABGR8888` (423579), `HACK selinux Force permissive` (**essencial** p/ cmdline `androidboot.selinux=permissive`; 464426), `Revert virtio context` (496668) |
 | Rust | rustc 1.93.1 (rustup pinado — mesma versão do toolchain Android) |
 | Clang | distro clang 23.1.4 (o clang original era AOSP 22.0.2, build 15071444, **não** é baixável de ci.android.com sem endpoint autenticado; nuance documentada — `CONFIG_CC_VERSION_TEXT` mudará) |
@@ -546,7 +551,7 @@ explicitamente **e** com guarda pós-olddefconfig.
 ## Estado real no boot KSU (hardware)
 
 Log real (`early_logcat.log` da seção do boot 23:02, extraída em
-`/tmp/opencode/lastboot.log`) + vendor.img:
+`$HOME/tmp/opencode/lastboot.log`) + vendor.img:
 
 | Camada | Componente | Estado |
 |---|---|---|
@@ -634,7 +639,7 @@ exatamente conhecida (abaixo).
 |---|---|---|---|
 | **1** | **Teste zero-artefato via persist prop**: com `su` no Terminal Android, `setprop persist.vendor.apex.org.lineageos.device.graphics.vulkan org.lineageos.device.graphics.vulkan.swiftshader` + reboot. persist vence o `ro.boot.*` setado pelo `hardware_detect` (que não toca em persist) | Zero artefato; revert = `setprop persist.vendor.apex.… ''` (ou reset) | Apex Swiftshader ativo ⇒ XMLs ⇒ `FEATURE_VULKAN`; driver = `pastel` (SwiftShader, **software**) setado pelo rc do apex (`on init`) — mas atenção: o `hardware_detect` roda ~2 min depois e re-seta `ro.hardware.vulkan=intel`, então o driver efetivo tende a ser **ANV de hardware** mesmo com o apex swiftshader ativo (empírico — é parte do que o teste revela) |
 | **2** | **Teste zero-artefato via cmdline**: `androidboot.vulkan_apex=2` no GRUB (override documentado de `vulkan_apex` ⇒ Swiftshader; `hw_vulkan` vai a Unset) | Zero artefato; revert = remover da cmdline | Idem #1, mas sem persist no /data |
-| **3** | **Fix de verdade — repack do vendor.img**: extrair EROFS, adicionar os **5 XMLs** (já extraídos do payload swiftshader p/ `/tmp/opencode/vk-xmls/`) em `/vendor/etc/permissions/`, `mkfs.erofs -zlz4` (mesmo fluxo do vendor_dlkm), instalar como `vendor.ksu.img` + hardlink no dir `-ksu` + rollback em `backup-p7-*` | Repack EROFS (sem assinatura); rollback idêntico ao já praticado | `FEATURE_VULKAN` declarado **com** apex `no_apex` e ICD ANV ⇒ **Vulkan 1.3 por hardware** (Mesa/ANV na Iris Xe) — o design que o upstream deixou incompleto |
+| **3** | **Fix de verdade — repack do vendor.img**: extrair EROFS, adicionar os **5 XMLs** (já extraídos do payload swiftshader p/ `$HOME/tmp/opencode/vk-xmls/`) em `/vendor/etc/permissions/`, `mkfs.erofs -zlz4` (mesmo fluxo do vendor_dlkm), instalar como `vendor.ksu.img` + hardlink no dir `-ksu` + rollback em `backup-p7-*` | Repack EROFS (sem assinatura); rollback idêntico ao já praticado | `FEATURE_VULKAN` declarado **com** apex `no_apex` e ICD ANV ⇒ **Vulkan 1.3 por hardware** (Mesa/ANV na Iris Xe) — o design que o upstream deixou incompleto |
 
 **Resultado do teste zero-artefato (#1): ✅ CONFIRMADO PELO USUÁRIO + LOG
 (boot 05:01, `early_logcat.log`)** — com
@@ -680,9 +685,9 @@ importar p/ Vulkan (gralloc) — se #3 ativar Vulkan com falhas de buffer,
 o próximo passo é setar `vendor.minigbm.generic_backend` (`dmabuf_heap`,
 `dumb_generic`, `gbm_mesa` ou `staging`).
 
-Fontes: `/tmp/opencode/dev-generic/` (clone raso do device tree),
-`/tmp/opencode/apex-src/` (clone apexd), `/tmp/opencode/vk-xmls/` (XMLs),
-`/tmp/opencode/vk-apex/{no,ss}/apex_payload.img` (payloads ext2, lidos via
+Fontes: `$HOME/tmp/opencode/dev-generic/` (clone raso do device tree),
+`$HOME/tmp/opencode/apex-src/` (clone apexd), `$HOME/tmp/opencode/vk-xmls/` (XMLs),
+`$HOME/tmp/opencode/vk-apex/{no,ss}/apex_payload.img` (payloads ext2, lidos via
 `debugfs`) — **voláteis** (/tmp limpo no reboot do host).
 
 ---
@@ -695,7 +700,7 @@ Fontes: `/tmp/opencode/dev-generic/` (clone raso do device tree),
 
 ## ISOs
 
-Base: **ISO oficial 20261020** (`/home/iris/lineage-24.0.iso`,
+Base: **ISO oficial 20261020** (`$HOME/lineage-24.0.iso`,
 2 841 491 456 bytes = exatamente as duas partes `lineage-24.0_aa/_ab` do
 release upstream — **verificada byte a byte** contra elas).
 
@@ -757,7 +762,7 @@ do fluxo do usuário: `sha256sums.txt` baixado do release → `cat` das partes �
 `sha256sum -c` **8/8 SUCESSO** + `cmp` das ISOs remontadas == locais byte a
 byte; asset `_ac` baixado do release confere com o local. Limpeza feita
 (`stage/`, `stage-test/`, `orig-verify/`, `test-ksu-vulkan.iso`,
-`user-sim/`); em `/home/iris/iso-build/` ficaram só a ISO1 + partes +
+`user-sim/`); em `$HOME/iso-build/` ficaram só a ISO1 + partes +
 `sha256sums.txt` + `release-notes.md`.
 
 Lembretes: a persist prop de diagnóstico
@@ -1043,7 +1048,7 @@ xattrs byte-exatos do original — 2074/0 sem correspondência — + relabel dos
 
 Regressão completa: GApps verdes (`55` packages), keystore2 intocado, boot no
 mesmo tempo. Artefatos guardados em
-`/home/iris/gbos-gapps-test/bt-fix/` (`vendor-bt.img`, `vendor-tree/`,
+`$HOME/gbos-gapps-test/bt-fix/` (`vendor-bt.img`, `vendor-tree/`,
 `orig-vendor-xattrs.txt`, `stage-bt/`, `test-bt.iso`, `qemu-bt.log`).
 
 **Próximo boot real** é o teste de verdade: o `btusb`+`btintel` (kernel) +
@@ -1168,7 +1173,7 @@ sujeito) + 41 tokens omissos (como dependência). Re-scan de consistência:
 | `SIGABRT` / `FORTIFY` / tombstones | **0** |
 | serviço antigo `bluetooth-default` | **0** |
 
-Log: `/home/iris/gbos-gapps-test/bt-fix/qemu-bt3.log` (ISO `test-bt.iso`
+Log: `$HOME/gbos-gapps-test/bt-fix/qemu-bt3.log` (ISO `test-bt.iso`
 rebuildada com o `vendor_dlkm` `62aef43e…`). As duas camadas do fix BT estão
 aplicadas e validadas em emulação; o teste final é o boot real (toggle de BT
 no AX201).
@@ -1224,7 +1229,7 @@ toggle continuou morto, agora por causa do HAL:
 | `Bluetooth: Core ver 2.22` (vendor_dlkm intocado) | ✓ |
 | `bluetooth-default` (serviço antigo) | **0** |
 
-Log: `/home/iris/gbos-gapps-test/bt-fix/qemu-bt4.log`. O HAL agora liga,
+Log: `$HOME/gbos-gapps-test/bt-fix/qemu-bt4.log`. O HAL agora liga,
 registra no VINTF e fica aguardando a stack; o teste final é o boot real.
 
 ### Rollback do fix BT

@@ -37,8 +37,7 @@ ro.surface_flinger.enable_frame_rate_override=true
 Script pronto e idempotente:
 
 ```sh
-sudo /home/iris/android17/patch_vendor_hwc.sh /caminho/da/android-dir/vendor.img
-# sem argumento: varre partições procurando imgs/vendor.img
+sudo scripts/patch_vendor_hwc.sh /caminho/vendor.img --out /caminho/vendor-patched.img
 ```
 
 O patch (ferramentas em `extracted/erofs-inst/bin`):
@@ -48,7 +47,8 @@ O patch (ferramentas em `extracted/erofs-inst/bin`):
 3. mantém/removes `ro.boot.hwc_apex=2` conforme flag do script — **irrelevante para o fix**
    (composer é neutro no crash; mantenha só se quiser o drmfb);
 4. reempacota com `mkfs.erofs -zlz4 --mount-point=/vendor --preserve-mtime -T <ts original>`;
-5. monta em loop e valida as linhas antes de trocar o arquivo (backup `.orig`);
+5. grava em `.new`, valida a imagem, salva manifesto e backup timestamped da
+   saída existente antes de substituir o destino escolhido.
 
 Sem AVB no vendor.img + `androidboot.selinux=permissive` no cmdline → repack seguro.
 
@@ -92,14 +92,16 @@ passam no épsilon de 0.001 do SF. Não é uma correção — é trocar a entrad
 
 ## Rollback
 
-`vendor.img.orig` (estado anterior) fica do lado do `vendor.img`. Restaurar:
-`sudo cp vendor.img.orig vendor.img`.
+Para restaurar a saída anterior, execute
+`sudo scripts/build_vendor.sh --base /caminho/vendor.img --out /caminho/vendor-patched.img --rollback`.
+Se ainda não existia uma saída, o rollback só remove o artefato criado quando
+o hash dele ainda confere com o manifesto; a imagem base fica preservada.
 
 ## Limpeza pós-debug (opcional)
 
 - Restaurar CachyOS como primeiro boot:
   `sudo efibootmgr -o 0000,0003,0002,0001,0008,0006,0007`
 - Espaço em `/home` (98%): avaliar apagar
-  `extracted/lineage-24.0-persist-log.iso` (2.7 G) e `/tmp/opencode/*` — a instalação em
+  `extracted/lineage-24.0-persist-log.iso` (2.7 G) e `$HOME/tmp/opencode/*` — a instalação em
   p7 é independente da ISO.
 - Pendrive USB (`sda`): ISO verificado por sha256 (`0e7bb5c5…07158`), mantém como rescue.

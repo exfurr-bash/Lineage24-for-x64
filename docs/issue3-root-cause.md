@@ -312,7 +312,7 @@ grep -n "hardware_detect" $L | grep -iE "hwc_apex|APEX|override"
 grep -n "enable_frame_rate_override" extracted/android_device_mainline_generic/configs/properties/vendor.prop
 ```
 
-Patch script used on the install (idempotent, keeps original as `.orig`):
-`/home/iris/android17/patch_vendor_hwc.sh`, together with erofs tools at
-`extracted/erofs-inst/bin` (ERFS extract → build.prop sed → `mkfs.erofs -zlz4
---mount-point=/vendor --preserve-mtime -T <orig build time>` → verify by loop mount).
+Use `scripts/patch_vendor_hwc.sh` to apply the HWC fix to a downloaded base
+image. The wrapper writes a separate output, validates it, writes a manifest,
+and keeps a timestamped backup if that output already exists. See
+`docs/ISSUE3-fix-guide.md` for the current command.

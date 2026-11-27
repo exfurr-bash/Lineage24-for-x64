@@ -1,0 +1,33 @@
+Lineage24-for-x64
+Copyright (C) 2026 the Lineage24-for-x64 contributors
+
+This project's scripts, Makefile, documentation and original configuration
+are licensed under the GNU General Public License, version 2 only
+(GPL-2.0-only). See LICENSE.
+
+The build downloads and combines third-party components. They are NOT
+relicensed by this project:
+
+  * LineageOS / Generic_X86_64 ISO images and device trees
+      https://github.com/IzumiSenaSora/Generic_X86_64
+      See the upstream project for its license and notices.
+  * Linux kernel (android.googlesource.com/kernel/common) — GPL-2.0
+  * KernelSU (https://github.com/tiann/KernelSU) — GPL-2.0
+  * gbOS86 build scripts and metadata (https://github.com/linuxkid473/gbos-x86)
+      The repository does not declare a license; this project does not copy
+      its code, only invokes its public downloader at a pinned commit.
+  * Vulkan feature XMLs in vendor-vulkan-xmls/ — from the Android Open Source
+      Project (Apache-2.0); see vendor-vulkan-xmls/README.md.
+  * Google recovery images, GMS/Play Store APKs and other Google binaries are
+      proprietary. They are downloaded at build time from Google's public
+      servers and are not part of this repository. Redistributing a built ISO
+      that contains them is the responsibility of whoever publishes it.
+
+"Android", "Google Play", "LineageOS" and other names are trademarks of their
+respective owners. This project is not affiliated with Google, the LineageOS
+project, or the Generic_X86_64 maintainers.
+
+THERE IS NO WARRANTY FOR THE PROGRAM, TO THE EXTENT PERMITTED BY APPLICABLE
+LAW. THE PROGRAM IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER
+EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.

@@ -64,4 +64,4 @@ Resultados anotados (2026-11-08, todos concluídos):
   (HiFi.conf SectionVerb + HDA/HiFi-spk.conf + HDA/HiFi-analog.conf) forçando
   Master/Speaker 100% e Headphone 80% ✓
 - **VERIFICADO PELO USUÁRIO**: "audio funcionando perfeitamente!" ✓
-- Documentação completa: `/home/iris/android17/SOM-fix-guide.md`
+- Documentação completa: `docs/SOM-fix-guide.md`

@@ -1,21 +1,36 @@
+# configuração local
+/config.env
+
 # árvores de build / fontes pesadas
 /build/
 /debian-linux/
 /extracted/
 /diag1/
 /diag_*/
+/tools/
 
-# backups e artefatos binários grandes
-/backup-p7-*/
-/backup-vendor-*/
-/*.iso
-*.iso
+# cache/workspace/artefatos do pipeline
+/cache/
+/workspace/
+/dist/
+/backups/
+/logs/
+/tmp/
+*.part
+*.new
+*.manifest.json
 
 # imagens (artefatos locais)
 *.img
+*.iso
 !vendor-vulkan-xmls/**
 
 # logs e temporários
 *.log
-/tmp/
 __pycache__/
+.pytest_cache/
+*.pyc
+
+# editores/OS
+.DS_Store
+*.swp

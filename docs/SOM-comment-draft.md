@@ -65,7 +65,6 @@ uninitialized codec amps. The proper upstream fixes, in order of preference:
 3. The HAL binary has both a tinyalsa path (`mixer_ctl_set_percent`) and an alsa-lib
    path (`snd_mixer_selem_*`) — the two diverge in what they initialize.
 
-(**Apêndice PT-BR:** documentação local completa em `SOM-fix-guide.md`; patch
-reprodutível em `patch_vendor_ucm_volume.sh`, idempotente, com verificação do `build.prop`
-do fix do issue #3 antes de trocar a imagem. Backups: `vendor.img.before_ucm`,
-`vendor.img.orig`.)
+(**Apêndice PT-BR:** documentação em `docs/SOM-fix-guide.md`. O fluxo atual
+usa `scripts/build_vendor.sh`, grava uma imagem de saída separada, valida o
+repack e registra manifesto e backups timestamped.)
