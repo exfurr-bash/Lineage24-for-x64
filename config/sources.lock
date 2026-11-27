@@ -35,6 +35,7 @@ KERNEL_SERIES=7.2
 KSU_REPO_URL=https://github.com/tiann/KernelSU.git
 KSU_TAG=v3.3.1
 KSU_COMMIT=0c0fdb960178fa12d80d6cbcfdcb6ad8be6a865d
+RUST_BINDGEN_VERSION=0.73.2
 
 # XMLs AOSP versionados no repositório; fetch_sources.sh confere estes pins.
 VULKAN_XML_COMPUTE_SHA256=65e26b6a034aa3cf8d4821e2820c3a0fcc55307a567dfaf2efde4e9988464561
@@ -54,7 +55,7 @@ GBOS_BUILD_VERSION=CL3B.260622.276.R5
 GBOS_RECOVERY_URL=https://dl.google.com/device/recovery/lapis-user/16693588/recovery.zip
 GBOS_RECOVERY_SHA256=11fa52682aac5372ff0d149c7b64c6e165024265b292a5e6d0ba9c6ec936b351
 GBOS_RECOVERY_SIZE=7700000000
-GBOS_PARTS="vendor_a product_a system_ext_a"
+GBOS_PARTS=vendor_a product_a system_ext_a
 
 # ----------------------------- GApps alternativa --------------------------
 # Perfil "github-gapps": system.img pronto do upstream (20260914), 100% GitHub,

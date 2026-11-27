@@ -60,16 +60,35 @@ fetch_kernel() {
   fi
   git -C "$KERNEL_SRC" cat-file -e "$KERNEL_COMMIT^{commit}" \
     || die "commit $KERNEL_COMMIT não encontrado em $KERNEL_SRC"
-  if [ -n "$(git -C "$KERNEL_SRC" status --porcelain)" ]; then
-    if [ "$FORCE" = 1 ]; then
-      warn "--force: descartando alterações locais em $KERNEL_SRC"
-      git -C "$KERNEL_SRC" reset --hard -q
-      git -C "$KERNEL_SRC" clean -fdq -e .config -e '*.orig'
+  # `git clone --no-checkout` leaves the index and worktree empty. Treat
+  # this initial state as an incomplete clone, including when a previous
+  # invocation stopped before the first checkout.
+  local no_checkout=0
+  if [ ! -e "$KERNEL_SRC/.git/index" ] \
+      && [ -z "$(find "$KERNEL_SRC" -mindepth 1 -maxdepth 1 ! -name .git -print -quit)" ]; then
+    no_checkout=1
+  fi
+  if [ "$no_checkout" = 1 ]; then
+    log "clone sem checkout; posicionando no commit pinado"
+    git -C "$KERNEL_SRC" checkout -q --force --detach "$KERNEL_COMMIT"
+  else
+    local current
+    current=$(git -C "$KERNEL_SRC" rev-parse HEAD)
+    if [ "$current" = "$KERNEL_COMMIT" ]; then
+      log "kernel já está no commit pinado; preservando alterações do worktree"
     else
-      die "árvore $KERNEL_SRC suja; use --force ou limpe manualmente"
+      if [ -n "$(git -C "$KERNEL_SRC" status --porcelain)" ]; then
+        if [ "$FORCE" = 1 ]; then
+          warn "--force: descartando alterações locais em $KERNEL_SRC"
+          git -C "$KERNEL_SRC" reset --hard -q
+          git -C "$KERNEL_SRC" clean -fdq -e .config -e '*.orig'
+        else
+          die "árvore $KERNEL_SRC suja; use --force ou limpe manualmente"
+        fi
+      fi
+      git -C "$KERNEL_SRC" checkout -q --detach "$KERNEL_COMMIT"
     fi
   fi
-  git -C "$KERNEL_SRC" checkout -q --detach "$KERNEL_COMMIT"
   ok "kernel em $(git -C "$KERNEL_SRC" rev-parse --short HEAD)"
 }
 

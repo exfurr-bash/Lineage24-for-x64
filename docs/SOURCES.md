@@ -24,6 +24,8 @@ ser preenchido após calcular e revisar o hash do arquivo unido.
 | --- | --- |
 | Kernel | [android.googlesource.com/kernel/common](https://android.googlesource.com/kernel/common), commit a2a0ccf4c10574fde950e554abffd9bdc9aec676 |
 | KernelSU | [tiann/KernelSU](https://github.com/tiann/KernelSU), tag v3.3.1, commit 0c0fdb960178fa12d80d6cbcfdcb6ad8be6a865d |
+| Rust | rustup toolchain 1.93.1 com componente `rust-src` |
+| Bindgen | `bindgen-cli` 0.73.2 |
 | Configuração do kernel | Extraída com extract-ikconfig do kernel da ISO base baixada |
 
 scripts/fetch_kernel.sh prepara os clones e confere os pins do lock. Patches

@@ -16,6 +16,7 @@ set -Eeuo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 . "$SCRIPT_DIR/lib/common.sh"
 enable_err_trap
+export PATH="$REAL_HOME/.cargo/bin:$PATH"
 
 ALLOW_KSU_MISMATCH=0
 STRICT_CLEAN=0
@@ -48,7 +49,7 @@ CONFIG_MODULE_ALLOW_BTF_MISMATCH=y
 die_cfg() { die "$1"; }
 
 section "pré-requisitos"
-require_cmd git make clang ld.lld bc flex bison python3
+require_cmd git make clang ld.lld bc flex bison python3 bindgen
 [ -d "$KERNEL_SRC" ] || die "sem KERNEL_SRC=$KERNEL_SRC (clone de $KERNEL_REPO)"
 [ -d "$KSU_REPO" ] || die "sem KSU_REPO=$KSU_REPO (clone de $KSU_REPO_URL)"
 [ -f "$REFCONFIG" ] || die "sem REFCONFIG=$REFCONFIG"
@@ -63,6 +64,10 @@ fi
 [ -n "$RUSTBIN" ] || die "rustc ausente (instale a toolchain $RUST_TOOLCHAIN: scripts/bootstrap.sh --with-rust)"
 RUSTBINDIR=$(dirname "$RUSTBIN")
 "$RUSTBIN" --version | sed 's/^/   /'
+RUST_SYSROOT=$("$RUSTBIN" --print sysroot)
+RUST_SRC_DIR=${RUST_LIB_SRC:-$RUST_SYSROOT/lib/rustlib/src/rust/library}
+[ -f "$RUST_SRC_DIR/core/src/lib.rs" ] \
+  || die "rust-src ausente para Rust $RUST_TOOLCHAIN (rode scripts/bootstrap.sh --with-rust)"
 
 # Guarda de memória: clang com 7 GB sem swap OOM-killou com paralelismo alto.
 MEMGB=$(free -g | awk '/^Mem/ {print $2}')
@@ -87,7 +92,9 @@ if [ -n "$(git status --porcelain)" ]; then
   fi
   warn "árvore $KERNEL_SRC suja (patches/symlink de execuções anteriores); continuando"
 fi
-git checkout -q --detach "$KERNEL_COMMIT"
+if [ "$(git rev-parse HEAD)" != "$KERNEL_COMMIT" ]; then
+  git checkout -q --detach "$KERNEL_COMMIT"
+fi
 MVER=$(sed -n '3p;4p;5p;6p' Makefile | tr -d '\n')
 log "Makefile: $MVER"
 
@@ -148,13 +155,15 @@ cleanup_kconfig_ext() {
 trap cleanup_kconfig_ext EXIT
 
 export PATH="$RUSTBINDIR:$PATH"
+make -C "$KERNEL_SRC" O="$OUT_DIR" LLVM=1 CC=clang RUSTC=rustc rustavailable
 make O="$OUT_DIR" LLVM=1 CC=clang RUSTC=rustc olddefconfig >/dev/null 2>&1 || {
   [ -f "$KERNEL_SRC/Kconfig.ext" ] || { : > "$KERNEL_SRC/Kconfig.ext"; KCONFIG_EXT_CREATED=1; }
   KCONFIG_EXT_PREFIX='' make O="$OUT_DIR" LLVM=1 CC=clang RUSTC=rustc olddefconfig >/dev/null
 }
 
 section "[5/7] guardas de configuração"
-grep -q "^CONFIG_RUST=y$" "$OUT_DIR/.config" || die "CONFIG_RUST caiu — rustc detectado não suportado pelo tree"
+grep -q "^CONFIG_RUST=y$" "$OUT_DIR/.config" \
+  || die "CONFIG_RUST caiu no olddefconfig; confira o resultado de 'make rustavailable' e os requisitos Rust do kernel"
 grep -q "^CONFIG_AX88796B_RUST_PHY=y$" "$OUT_DIR/.config" || die "AX88796B_RUST_PHY sumiu"
 grep -q "^CONFIG_AMCC_QT2025_PHY=m$" "$OUT_DIR/.config" || die "AMCC_QT2025_PHY sumiu"
 grep -q '^# CONFIG_X86_KERNEL_IBT is not set$' "$OUT_DIR/.config" \

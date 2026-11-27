@@ -424,7 +424,7 @@ def check(root, want_bt=False, want_vulkan=False, want_hwc=False, want_ucm=False
     print(json.dumps(res, indent=2, sort_keys=True))
     if failures:
         die("check falhou: " + "; ".join(failures))
-    print("check OK")
+    print("check OK", file=sys.stderr)
 
 
 def main() -> int:

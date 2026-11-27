@@ -156,7 +156,7 @@ extract_android_dir() {
     if xorriso -osirrox on -indev "$ISO_FILE" -extract "/$cand" "$tmp/x" >/dev/null 2>&1 && [ -e "$tmp/x" ]; then
       found=$tmp/x; break
     fi
-    rm -rf "$tmp/x"
+    _remove_tmpdir "$tmp/x"
   done
   [ -n "$found" ] || die "não achei as imagens dentro da ISO (procurei android-Generic_x86_64/System); rode scripts/inspect_iso.sh"
   log "imagens encontradas em /${found#"$tmp"/}"

@@ -225,11 +225,28 @@ restore_backup() { # restore_backup TAG ARQUIVO
 # ------------------------------- temporários ------------------------------
 _TMPLIST_FILE=$TMPROOT/.tmpdirs.$$
 : > "$_TMPLIST_FILE"
+_remove_tmpdir() { # remove_tmpdir PATH criado por new_tmpdir
+  local d=$1
+  case "$d" in
+    "$TMPROOT"/*) ;;
+    *) warn "recusando remover temporário fora de TMPROOT: $d"; return 0 ;;
+  esac
+  [ -d "$d" ] || return 0
+  # Alguns temporários são pontos de montagem EROFS. Desmonte antes de
+  # alterar permissões ou apagar; um mount ro produz EROFS em rm/chmod.
+  if mountpoint -q "$d"; then
+    umount "$d" || { warn "não consegui desmontar temporário: $d"; return 0; }
+  fi
+  # xorriso preserva diretórios somente leitura da ISO; libere a escrita
+  # para o dono antes de apagar o diretório temporário.
+  chmod -R u+w -- "$d" 2>/dev/null || true
+  rm -rf -- "$d" || warn "não consegui remover temporário: $d"
+}
 _cleanup_tmpdirs() {
   local d
   if [ -f "$_TMPLIST_FILE" ]; then
     while IFS= read -r d; do
-      [ -n "$d" ] && [ -d "$d" ] && rm -rf -- "$d"
+      [ -n "$d" ] && _remove_tmpdir "$d"
     done < "$_TMPLIST_FILE"
     rm -f -- "$_TMPLIST_FILE"
   fi

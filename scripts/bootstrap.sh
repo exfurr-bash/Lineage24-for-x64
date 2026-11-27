@@ -70,6 +70,54 @@ fi
 
 # Rust: o kernel 7.2 exige a toolchain pinada.
 RUST_NEEDED=${RUST_TOOLCHAIN:-1.93.1}
+BINDGEN_NEEDED=${RUST_BINDGEN_VERSION:-$(lock_get RUST_BINDGEN_VERSION)}
+
+run_as_real_user() {
+  if [ "$(id -u)" = 0 ] && [ "$REAL_USER" != root ]; then
+    command -v runuser >/dev/null 2>&1 || die "runuser ausente; instale Rust como $REAL_USER"
+    runuser -u "$REAL_USER" -- env HOME="$REAL_HOME" \
+      CARGO_HOME="$REAL_HOME/.cargo" RUSTUP_HOME="$REAL_HOME/.rustup" "$@"
+  else
+    HOME="$REAL_HOME" CARGO_HOME="$REAL_HOME/.cargo" \
+      RUSTUP_HOME="$REAL_HOME/.rustup" "$@"
+  fi
+}
+
+install_rust_toolchain() {
+  local rustup_bin="$REAL_HOME/.cargo/bin/rustup"
+  local bindgen_bin="$REAL_HOME/.cargo/bin/bindgen" bindgen_version=""
+  if [ ! -x "$rustup_bin" ] \
+      && { [ "$REAL_USER" = root ] || [ "$(id -u)" != 0 ]; }; then
+    rustup_bin=$(command -v rustup || true)
+  fi
+  if [ -z "$rustup_bin" ] || [ ! -x "$rustup_bin" ]; then
+    require_cmd curl
+    section "instalando rustup para $REAL_USER"
+    if [ "$(id -u)" = 0 ] && [ "$REAL_USER" != root ]; then
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+        | run_as_real_user sh -s -- -y --profile minimal --default-toolchain none
+    else
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+        | sh -s -- -y --profile minimal --default-toolchain none
+    fi
+    rustup_bin="$REAL_HOME/.cargo/bin/rustup"
+  fi
+  [ -x "$rustup_bin" ] || die "rustup não ficou disponível em $rustup_bin"
+  section "instalando toolchain Rust $RUST_NEEDED para $REAL_USER"
+  run_as_real_user "$rustup_bin" toolchain install "$RUST_NEEDED"
+  run_as_real_user "$rustup_bin" component add rust-src --toolchain "$RUST_NEEDED"
+
+  if [ -x "$bindgen_bin" ]; then
+    bindgen_version=$({ "$bindgen_bin" --version 2>/dev/null || true; } | awk '{print $2}')
+  fi
+  if [ "$bindgen_version" != "$BINDGEN_NEEDED" ]; then
+    section "instalando bindgen-cli $BINDGEN_NEEDED para $REAL_USER"
+    export CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS:-2}
+    run_as_real_user "$rustup_bin" run "$RUST_NEEDED" cargo install \
+      --locked --force --version "$BINDGEN_NEEDED" bindgen-cli
+  fi
+}
+
 if [ "$WITH_RUST" = 1 ]; then
   command -v rustup >/dev/null 2>&1 || missing+=("rustup")
 else
@@ -85,6 +133,12 @@ if [ "${#missing[@]}" -gt 0 ]; then
   printf '   %s\n' "${missing[*]}"
 else
   ok "todas as dependências verificadas estão presentes"
+fi
+
+if [ "$WITH_RUST" = 1 ] && [ "$INSTALL" = 0 ]; then
+  install_rust_toolchain
+  ok "toolchain Rust $RUST_NEEDED pronta para $REAL_USER"
+  exit 0
 fi
 
 if [ "$INSTALL" = 0 ]; then
@@ -132,21 +186,7 @@ case "$PM" in
 esac
 
 if [ "$WITH_RUST" = 1 ]; then
-  if ! command -v rustup >/dev/null 2>&1; then
-    section "instalando rustup"
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-  fi
-  # rustup foi instalado no HOME do root; usa explicitamente o toolchain pedido.
-  RUSTUP_HOME=${RUSTUP_HOME:-/root/.rustup}
-  if [ "$REAL_USER" != root ]; then
-    RUSTUP_HOME="/home/$REAL_USER/.rustup"
-  fi
-  "$RUSTUP_HOME/toolchains" >/dev/null 2>&1 || true
-  if [ -x "$HOME/.cargo/bin/rustup" ]; then
-    "$HOME/.cargo/bin/rustup" toolchain install "$RUST_NEEDED"
-  else
-    warn "rustup instalado mas não encontrado; rode 'rustup toolchain install $RUST_NEEDED' como $REAL_USER"
-  fi
+  install_rust_toolchain
 fi
 
 ok "bootstrap concluído"

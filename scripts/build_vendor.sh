@@ -191,8 +191,15 @@ if [ "$CHECK_ONLY" = 0 ]; then
     [ ! -e "$CHK/bin/hw/android.hardware.bluetooth-service.default" ] || die "HAL UART ainda presente"
   fi
   if [ "$DO_VULKAN" = 1 ]; then
-    n=$(find "$CHK/etc/permissions" -maxdepth 1 -name '*vulkan*' -printf x 2>/dev/null | wc -c)
-    [ "$n" -ge 5 ] || die "XMLs Vulkan na imagem nova: $n (esperado 5)"
+    n=0
+    for xml in "$XMLDIR"/*.xml; do
+      [ -f "$xml" ] || continue
+      name=$(basename "$xml")
+      [ -f "$CHK/etc/permissions/$name" ] \
+        || die "XML Vulkan ausente na imagem nova: $name"
+      n=$((n + 1))
+    done
+    [ "$n" -eq 5 ] || die "esperava 5 XMLs de origem em $XMLDIR; encontrei $n"
   fi
   loop_umount "$CHK"
 
